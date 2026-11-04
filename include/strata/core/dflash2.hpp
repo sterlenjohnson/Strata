@@ -246,7 +246,7 @@ private:
         bool logged(int64_t pos) const;
         uint64_t bytes() const;
         void truncate(int64_t keep);                      ///< forget the rows of positions >= keep
-        LogChunk& writable(size_t chunk);                 ///< the chunk, allocated or un-shared first
+        LogChunk& writable(size_t chunk, int n_embd = 2560);   ///< the chunk, allocated (for rows of n_embd codes) or un-shared first
     };
     Lineage cur_;                                         ///< the lineage the ring belongs to
     std::deque<Lineage> stash_;                           ///< parked lineages, newest last

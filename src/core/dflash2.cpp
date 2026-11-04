@@ -169,8 +169,8 @@ bool Dflash2Drafter::load(const std::string& path, int device, std::string& err)
             total = std::max(total, t.off + t.bytes);
         }
     }
-    if (tensors_.empty() || NH_ != 32 || NKV_ != 8 || HD_ != 128 || rank_ != 256 || N_ != 2560 || L_ > 8 || window_ + 16 > kRing) {
-        err = "dflash2: the pack's shape is not the Flash-Next drafter this engine was written for";
+    if (tensors_.empty() || NH_ != 32 || NKV_ != 8 || HD_ != 128 || rank_ != 256 || N_ % 32 != 0 || N_ < 1024 || N_ > 4096 || L_ > 8 || window_ + 16 > kRing) {
+        err = "dflash2: the pack's shape is not one this engine was written for (32 heads, 8 KV heads, head dim 128, selector rank 256, hidden a multiple of 32 in 1024..4096)";
         return false;
     }
     if (cudaMalloc((void**) &blob_, total) != cudaSuccess) { err = "dflash2: the pack does not fit in VRAM (" + std::to_string(total >> 20) + " MiB)"; return false; }
@@ -705,12 +705,12 @@ uint64_t Dflash2Drafter::Lineage::bytes() const {
     return b;
 }
 
-Dflash2Drafter::LogChunk& Dflash2Drafter::Lineage::writable(size_t chunk) {
+Dflash2Drafter::LogChunk& Dflash2Drafter::Lineage::writable(size_t chunk, int n_embd) {
     if (chunks.size() <= chunk) chunks.resize(chunk + 1);
     if (!chunks[chunk]) {
         auto c = std::make_shared<LogChunk>();
-        c->q.assign((size_t) kLogChunk * 2560, 0);
-        c->d.assign((size_t) kLogChunk * 80, 0.0f);
+        c->q.assign((size_t) kLogChunk * (size_t) n_embd, 0);
+        c->d.assign((size_t) kLogChunk * (size_t) (n_embd / 32), 0.0f);
         c->ok.assign((size_t) kLogChunk, 0);
         chunks[chunk] = std::move(c);
     } else if (chunks[chunk].use_count() > 1) {
@@ -803,10 +803,10 @@ void Dflash2Drafter::log_flush() {
     if (!log_on_ || pend_pos0_ < 0) return;
     for (int i = 0; i < pend_n_; ++i) {
         const int64_t pos = pend_pos0_ + i;
-        LogChunk& ch = cur_.writable((size_t) (pos / kLogChunk));
+        LogChunk& ch = cur_.writable((size_t) (pos / kLogChunk), N_);
         const size_t r = (size_t) (pos % kLogChunk);
-        std::memcpy(&ch.q[r * 2560], h_logq_ + (size_t) i * 2560, 2560);
-        std::memcpy(&ch.d[r * 80], h_logd_ + (size_t) i * 80, 80 * sizeof(float));
+        std::memcpy(&ch.q[r * N_], h_logq_ + (size_t) i * N_, N_);
+        std::memcpy(&ch.d[r * (N_ / 32)], h_logd_ + (size_t) i * (N_ / 32), (N_ / 32) * sizeof(float));
         ch.ok[r] = 1;
     }
     pend_pos0_ = -1;
@@ -828,7 +828,7 @@ bool Dflash2Drafter::rebuild(int64_t lo, int64_t hi, int64_t* rebuilt, int64_t* 
     const size_t rows = pos.size();
     const size_t cap = (size_t) kRing;   // a window is at most 2048 rows
     if (rb_q_ == nullptr) {
-        if (cudaMalloc((void**) &rb_q_, (cap + kRows) * 2560) != cudaSuccess || cudaMalloc((void**) &rb_d_, (cap + kRows) * 80 * sizeof(float)) != cudaSuccess ||
+        if (cudaMalloc((void**) &rb_q_, (cap + kRows) * N_) != cudaSuccess || cudaMalloc((void**) &rb_d_, (cap + kRows) * (N_ / 32) * sizeof(float)) != cudaSuccess ||
             cudaMalloc((void**) &rb_pos_, (cap + kRows) * sizeof(int32_t)) != cudaSuccess) {
             if (rb_q_) cudaFree(rb_q_);
             if (rb_d_) cudaFree(rb_d_);
@@ -837,19 +837,19 @@ bool Dflash2Drafter::rebuild(int64_t lo, int64_t hi, int64_t* rebuilt, int64_t* 
             err = "dflash2: the ring rebuild's scratch does not fit";
             return false;
         }
-        cudaMemset(rb_q_, 0, (cap + kRows) * 2560);
-        cudaMemset(rb_d_, 0, (cap + kRows) * 80 * sizeof(float));
-        rb_bytes_ = (cap + kRows) * (2560 + 80 * sizeof(float) + sizeof(int32_t));
+        cudaMemset(rb_q_, 0, (cap + kRows) * N_);
+        cudaMemset(rb_d_, 0, (cap + kRows) * (N_ / 32) * sizeof(float));
+        rb_bytes_ = (cap + kRows) * (N_ + (N_ / 32) * sizeof(float) + sizeof(int32_t));
         vram_ += rb_bytes_;
     }
-    std::vector<int8_t> q(rows * 2560);
-    std::vector<float> d(rows * 80);
+    std::vector<int8_t> q(rows * N_);
+    std::vector<float> d(rows * (N_ / 32));
     for (size_t i = 0; i < rows; ++i) {
         const int64_t p = pos[i];
         const LogChunk& ch = *cur_.chunks[(size_t) (p / kLogChunk)];
         const size_t r = (size_t) (p % kLogChunk);
-        std::memcpy(&q[i * 2560], &ch.q[r * 2560], 2560);
-        std::memcpy(&d[i * 80], &ch.d[r * 80], 80 * sizeof(float));
+        std::memcpy(&q[i * N_], &ch.q[r * N_], N_);
+        std::memcpy(&d[i * (N_ / 32)], &ch.d[r * (N_ / 32)], (N_ / 32) * sizeof(float));
     }
     h_meta_[18] = epoch_;
     std::atomic_thread_fence(std::memory_order_seq_cst);
@@ -865,7 +865,7 @@ bool Dflash2Drafter::rebuild(int64_t lo, int64_t hi, int64_t* rebuilt, int64_t* 
     for (size_t r0 = 0; ok && r0 < rows; r0 += kRows) {
         const int m = (int) std::min<size_t>(kRows, rows - r0);
         try { kernels::df2_rope_table_inv(rb_pos_ + r0, m, rope_inv_, rt_ctx_, cs_); } catch (const std::exception& e) { err = e.what(); ok = false; break; }
-        ok = record_kv(m, cs_, reinterpret_cast<const uint8_t*>(rb_q_) + r0 * 2560, rb_d_ + r0 * 80, rb_pos_ + r0, err);
+        ok = record_kv(m, cs_, reinterpret_cast<const uint8_t*>(rb_q_) + r0 * N_, rb_d_ + r0 * (N_ / 32), rb_pos_ + r0, err);
     }
     fork_ = was_fork;
     if (!ok) return false;
