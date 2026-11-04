@@ -74,6 +74,21 @@ Q8_0 file (`Qwen3.6-35B-A3B-Q8_0.gguf`, no MTP block, 35 GB so most experts sit 
 | prose | 32.9 | 37.4 (+14%) | 54% |
 | JSON | 32.4 | 34.4 (+6%) | 49% |
 
+Q8_0 depth sweep (`--spec N`, 200 tokens, temperature 0, one run per cell; plain decode 32.4 code / 32.9 prose):
+
+| Depth | Code tok/s | Code accepted | Prose tok/s | Prose accepted |
+|---|---|---|---|---|
+| 2 | 41.5 | 82% | 41.0 | 81% |
+| 3 | 44.9 | 82% | 34.5 | 66% |
+| 4 | 47.1 | 73% | 38.1 | 59% |
+| 5 | 38.9 | 67% | 37.4 | 54% |
+| 6 | 44.3 | 63% | 39.2 | 48% |
+| 7 | 37.1 | 59% | 29.8 | 44% |
+
+Acceptance falls steadily with depth; throughput does not move smoothly (differences under about 5 tok/s are within the run-to-run
+noise seen here, and depth 5 was not rerun). Depth 2-4 is the useful range: 4 for code, 2 for prose. Every prose run matched plain
+decoding token for token; all code runs matched each other but differ from plain decoding.
+
 The Q8_0 file needed one loader change: `nextn_predict_layers` is now optional in the architecture guard (a file without it has no MTP
 block). DFlash2 is an external pack, so it does not depend on that block. The prose answer matched plain decoding token for token.
 
