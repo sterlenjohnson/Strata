@@ -209,6 +209,175 @@ __global__ void k_tap(const float* x, float* dst, int N, int stride) {
     for (int i = threadIdx.x; i < N; i += blockDim.x) dr[i] = xr[i];
 }
 
+// ---- TurboQuant KV codec (TheTom/llama-cpp-turboquant's turbo2/3/4_0, the production path: norm, sign-flipped Walsh-Hadamard rotation, Lloyd-Max
+// centroids, norm corrected by the reconstruction's energy).  A group is 128 values of one head row.  The kernel rounds a freshly written K or V
+// row through the codec and writes the decoded values back, so attention sees exactly what a compressed cache would hold.
+__constant__ float c_tq_s1[128], c_tq_s2[128];
+__constant__ float c_tq_cent[3][16];   // [bits - 2][centroid]
+__constant__ float c_tq_thr[3][15];    // midpoints between neighbouring centroids
+
+__device__ __forceinline__ int tq_nearest(float v, int bits) {
+    const int n = (1 << bits) - 1;
+    int idx = 0;
+    for (int k = 0; k < n; ++k) idx += v >= c_tq_thr[bits - 2][k] ? 1 : 0;
+    return idx;
+}
+
+__constant__ float c_pl[64][2];     // PlanarQuant: cos / sin of each pair's angle
+__constant__ float c_qL[32][4], c_qR[32][4];   // IsoQuant: the left and right unit quaternions of each 4-block
+
+__device__ __forceinline__ float4 tq_qmul(float4 a, float4 b) {   // quaternion product [w x y z]
+    return make_float4(a.x * b.x - a.y * b.y - a.z * b.z - a.w * b.w, a.x * b.y + a.y * b.x + a.z * b.w - a.w * b.z,
+                       a.x * b.z - a.y * b.w + a.z * b.x + a.w * b.y, a.x * b.w + a.y * b.z - a.z * b.y + a.w * b.x);
+}
+__device__ __forceinline__ float4 tq_qconj(float4 a) { return make_float4(a.x, -a.y, -a.z, -a.w); }
+
+/// grid (HKV, T, 2): z = 0 rounds K, z = 1 rounds V; block HD threads (HD a multiple of 128, at most 256: one 128-wide group per half block).
+/// mode 0: TurboQuant's sign-flipped Walsh-Hadamard rotation; 1: RotorQuant's PlanarQuant (a 2D Givens rotation per pair); 2: its IsoQuant
+/// (q_L v conj(q_R) per 4-block).  ncorr: the norm corrected by the chosen centroids' energy (TurboQuant does, RotorQuant's reference does not).
+__global__ void __launch_bounds__(256) k_turbo_fq(float* kc, float* vc, const int32_t* pos0, int ctx, int HD, int kbits, int vbits, int mode, int ncorr) {
+    const int kh = blockIdx.x, t = blockIdx.y, which = blockIdx.z;
+    const int bits = which ? vbits : kbits;
+    if (bits < 2) return;
+    float* row = (which ? vc : kc) + ((size_t) kh * ctx + (*pos0 + t)) * HD;
+    __shared__ float buf[256];
+    __shared__ float red[8];
+    const int i = threadIdx.x, g = i >> 7, j = i & 127;
+    const float x = row[i];
+    if (mode == 3) {   // ggml's q8_0 (bits 8) / q4_0 (bits 4): blocks of 32 values, one fp16 scale each, no rotation (a warp per block)
+        float amax = fabsf(x), sm = x;
+        for (int o = 16; o > 0; o >>= 1) {
+            const float oa = __shfl_xor_sync(0xffffffffu, amax, o), os = __shfl_xor_sync(0xffffffffu, sm, o);
+            if (oa > amax) { amax = oa; sm = os; }
+        }
+        if (bits >= 8) {
+            const float d = amax / 127.f, id = d != 0.f ? 1.f / d : 0.f;
+            row[i] = roundf(x * id) * __half2float(__float2half(d));
+        } else {
+            const float d = sm / -8.f, id = d != 0.f ? 1.f / d : 0.f;
+            const int q = min(15, (int) (x * id + 8.5f));
+            row[i] = (float) (q - 8) * __half2float(__float2half(d));
+        }
+        return;
+    }
+    // the group's L2 norm
+    float sq = x * x;
+    for (int o = 16; o > 0; o >>= 1) sq += __shfl_xor_sync(0xffffffffu, sq, o);
+    if ((i & 31) == 0) red[i >> 5] = sq;
+    __syncthreads();
+    const float norm = sqrtf(red[g * 4] + red[g * 4 + 1] + red[g * 4 + 2] + red[g * 4 + 3]);
+    __syncthreads();
+    const float u = norm > 1e-10f ? x / norm : 0.f;
+    float y;
+    if (mode == 0) {   // D(s2) * N * H * D(s1)
+        buf[i] = u * c_tq_s1[j];
+        __syncthreads();
+        for (int h = 1; h < 128; h <<= 1) {
+            const float a = buf[i], b = buf[i ^ h];
+            __syncthreads();
+            buf[i] = (j & h) ? b - a : a + b;
+            __syncthreads();
+        }
+        y = buf[i] * 0.08838834764831845f * c_tq_s2[j];
+    } else if (mode == 1) {   // 2D rotation of each pair
+        buf[i] = u;
+        __syncthreads();
+        const float u0 = buf[i & ~1], u1 = buf[i | 1], c = c_pl[j >> 1][0], sn = c_pl[j >> 1][1];
+        y = (j & 1) ? sn * u0 + c * u1 : c * u0 - sn * u1;
+    } else {   // q_L * v * conj(q_R) on each 4-block
+        buf[i] = u;
+        __syncthreads();
+        const int b4 = i & ~3, q = j >> 2;
+        const float4 v = make_float4(buf[b4], buf[b4 + 1], buf[b4 + 2], buf[b4 + 3]);
+        const float4 qL = make_float4(c_qL[q][0], c_qL[q][1], c_qL[q][2], c_qL[q][3]);
+        const float4 qR = make_float4(c_qR[q][0], c_qR[q][1], c_qR[q][2], c_qR[q][3]);
+        const float4 r = tq_qmul(tq_qmul(qL, v), tq_qconj(qR));
+        const int k = j & 3;
+        y = k == 0 ? r.x : k == 1 ? r.y : k == 2 ? r.z : r.w;
+    }
+    __syncthreads();
+    const int idx = tq_nearest(y, bits);
+    const float c = c_tq_cent[bits - 2][idx];
+    float e = c * c;
+    for (int o = 16; o > 0; o >>= 1) e += __shfl_xor_sync(0xffffffffu, e, o);
+    if ((i & 31) == 0) red[i >> 5] = e;
+    __syncthreads();
+    const float recon = sqrtf(red[g * 4] + red[g * 4 + 1] + red[g * 4 + 2] + red[g * 4 + 3]);
+    // (stored as fp16)
+    const float scale = __half2float(__float2half(ncorr && recon > 1e-10f ? norm / recon : norm));
+    __syncthreads();
+    const float z = c * scale;
+    if (mode == 0) {   // D(s1) * N * H * D(s2)
+        buf[i] = z * c_tq_s2[j];
+        __syncthreads();
+        for (int h = 1; h < 128; h <<= 1) {
+            const float a = buf[i], b = buf[i ^ h];
+            __syncthreads();
+            buf[i] = (j & h) ? b - a : a + b;
+            __syncthreads();
+        }
+        row[i] = buf[i] * 0.08838834764831845f * c_tq_s1[j];
+    } else if (mode == 1) {
+        buf[i] = z;
+        __syncthreads();
+        const float z0 = buf[i & ~1], z1 = buf[i | 1], c2 = c_pl[j >> 1][0], sn = c_pl[j >> 1][1];
+        row[i] = (j & 1) ? -sn * z0 + c2 * z1 : c2 * z0 + sn * z1;
+    } else {
+        buf[i] = z;
+        __syncthreads();
+        const int b4 = i & ~3, q = j >> 2;
+        const float4 v = make_float4(buf[b4], buf[b4 + 1], buf[b4 + 2], buf[b4 + 3]);
+        const float4 qL = make_float4(c_qL[q][0], c_qL[q][1], c_qL[q][2], c_qL[q][3]);
+        const float4 qR = make_float4(c_qR[q][0], c_qR[q][1], c_qR[q][2], c_qR[q][3]);
+        const float4 r = tq_qmul(tq_qmul(tq_qconj(qL), v), qR);
+        const int k = j & 3;
+        row[i] = k == 0 ? r.x : k == 1 ? r.y : k == 2 ? r.z : r.w;
+    }
+}
+
+static void turbo_init_constants() {
+    static const float s1[128] = {
+        -1,1,1,-1,-1,1,-1,1,-1,-1,1,1,1,1,1,1,1,-1,1,-1,1,-1,-1,1,1,1,-1,1,1,-1,-1,-1,
+        -1,1,1,-1,1,1,-1,1,-1,1,1,-1,-1,1,-1,1,1,1,1,-1,-1,-1,-1,-1,1,-1,1,1,1,1,-1,1,
+        -1,-1,1,-1,-1,-1,1,-1,-1,-1,1,-1,-1,-1,1,1,1,-1,-1,1,1,1,-1,-1,1,1,-1,1,1,-1,1,-1,
+        -1,1,1,-1,1,-1,1,-1,1,1,1,1,-1,1,-1,1,1,-1,1,1,-1,-1,-1,-1,-1,1,1,-1,1,1,-1,1};
+    static const float s2[128] = {
+        1,1,1,1,-1,1,1,-1,1,-1,-1,-1,1,-1,-1,-1,1,1,-1,-1,1,-1,1,-1,1,-1,-1,1,-1,1,1,1,
+        1,1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,1,1,1,-1,1,-1,1,1,1,-1,-1,1,-1,-1,-1,-1,-1,-1,1,1,
+        1,-1,1,-1,-1,-1,-1,1,-1,1,-1,1,-1,-1,1,1,-1,1,-1,1,1,-1,1,-1,-1,-1,-1,1,-1,-1,1,-1,
+        1,-1,1,1,1,-1,-1,1,-1,1,-1,1,1,-1,-1,1,-1,1,-1,1,1,-1,1,-1,1,-1,-1,-1,-1,-1,1,-1};
+    static const float c2[4] = {-0.133462f, -0.039994f, 0.039994f, 0.133462f};
+    static const float c3[8] = {-0.190207f, -0.118786f, -0.066822f, -0.021663f, 0.021663f, 0.066822f, 0.118786f, 0.190207f};
+    static const float c4[16] = {-0.241529f, -0.182877f, -0.143016f, -0.111036f, -0.083292f, -0.058050f, -0.034299f, -0.011349f,
+                                 0.011349f, 0.034299f, 0.058050f, 0.083292f, 0.111036f, 0.143016f, 0.182877f, 0.241529f};
+    float cent[3][16] = {}, thr[3][15] = {};
+    const float* tab[3] = {c2, c3, c4};
+    for (int b = 0; b < 3; ++b) {
+        const int n = 4 << b;
+        for (int k = 0; k < n; ++k) cent[b][k] = tab[b][k];
+        for (int k = 0; k + 1 < n; ++k) thr[b][k] = 0.5f * (tab[b][k] + tab[b][k + 1]);
+    }
+    CK(cudaMemcpyToSymbol(c_tq_s1, s1, sizeof(s1)));
+    CK(cudaMemcpyToSymbol(c_tq_s2, s2, sizeof(s2)));
+    CK(cudaMemcpyToSymbol(c_tq_cent, cent, sizeof(cent)));
+    CK(cudaMemcpyToSymbol(c_tq_thr, thr, sizeof(thr)));
+    // RotorQuant's rotations: one random angle per pair, one random unit quaternion (two for the full form) per 4-block (seeded, not torch's stream)
+    std::mt19937 rng(42);
+    std::uniform_real_distribution<float> ang(0.f, 6.2831853f);
+    std::normal_distribution<float> nrm(0.f, 1.f);
+    float pl[64][2], qL[32][4], qR[32][4];
+    for (int m = 0; m < 64; ++m) { const float a = ang(rng); pl[m][0] = std::cos(a); pl[m][1] = std::sin(a); }
+    for (int b = 0; b < 32; ++b)
+        for (float (*Q)[4] : {qL, qR}) {
+            float v[4], n2 = 0;
+            for (int k = 0; k < 4; ++k) { v[k] = nrm(rng); n2 += v[k] * v[k]; }
+            for (int k = 0; k < 4; ++k) Q[b][k] = v[k] / std::sqrt(n2);
+        }
+    CK(cudaMemcpyToSymbol(c_pl, pl, sizeof(pl)));
+    CK(cudaMemcpyToSymbol(c_qL, qL, sizeof(qL)));
+    CK(cudaMemcpyToSymbol(c_qR, qR, sizeof(qR)));
+}
+
 __global__ void k_add(float* x, const float* y, int64_t n) {
     const int64_t i = (int64_t) blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) x[i] += y[i];
@@ -1204,6 +1373,8 @@ struct Engine {
     bool use_graph = true;
     int mtp_d = 0;   // MTP drafts per speculative step (0: none; greedy requests only)
     bool df2_on = false;   // the drafts come from the DFlash2 drafter (mtp_d is then its depth)
+    int tq_mode = 0, tq_ncorr = 1;    // the rotation (0 Walsh-Hadamard, 1 planar, 2 iso) and the norm correction
+    int tq_kbits = 0, tq_vbits = 0;   // --kv-turbo k4v3: K / V rounded through the TurboQuant codec as they are written (0: off)
 
     // ---- sessions: the conversation states.  One for a single-request engine; --batch N keeps N, each with its own
     // recurrent state and KV cache, so N requests run at once: their rows share one decode window (forward_rows).  The
@@ -1958,6 +2129,8 @@ struct Engine {
             k_attn_prep<<<dim3(H + HKV, T), kThreads, 0, st>>>(qg, kx, vx, L.q_norm, L.k_norm, q, gate, rows_mode ? nullptr : kc[li],
                                                               rows_mode ? nullptr : vc[li], H, HKV, HD, m->n_rot, dpos, ctx,
                                                               m->rope_base, m->eps, d_delta, mtab_now, rs);
+            if ((tq_kbits > 0 || tq_vbits > 0) && !rows_mode)
+                k_turbo_fq<<<dim3(HKV, T, 2), HD, 0, st>>>(kc[li], vc[li], dpos, ctx, HD, tq_kbits, tq_vbits, tq_mode, tq_ncorr);
             if (T > kGemmT) {
                 // a prompt chunk: scores = Q K^T and out = P V as FP16 GEMMs (FP32 accumulation, FP32 scores) per KV
                 // head (its query heads one strided batch over the shared K / V), the causal softmax in between writing
@@ -3892,6 +4065,8 @@ int strata::qwen35::run(int argc, char** argv) {
     bool draft_df2 = false;      // --draft dflash2 --draft-model PACK
     std::string draft_pack;
     int df2_depth = 5;
+    int tq_k = 0, tq_v = 0;      // --kv-turbo
+    int tq_rot = 0;              // --kv-rot wht|planar|iso
     bool warm = true;
     int expert_slots = 0, batch = 0, draft_vocab = -1;
     bool serve_mode = false, graph = true, vision = false, batch_mtp = false;
@@ -3945,6 +4120,20 @@ int strata::qwen35::run(int argc, char** argv) {
                 return 2;
 #endif
             }
+        }
+        else if (a == "--kv-turbo") {   // k4v3 (or 4:3): K at 4 bits, V at 3 (2, 3 or 4 each; 0 leaves one side alone)
+            const std::string v = next();
+            int kb = 0, vb = 0;
+            if (std::sscanf(v.c_str(), "k%dv%d", &kb, &vb) != 2 && std::sscanf(v.c_str(), "%d:%d", &kb, &vb) != 2) {
+                std::fprintf(stderr, "strata-q36: --kv-turbo takes k4v3 or 4:3\n");
+                return 2;
+            }
+            tq_k = kb; tq_v = vb;
+        }
+        else if (a == "--kv-rot") {   // the KV codec's rotation: wht (TurboQuant), planar or iso (RotorQuant)
+            const std::string v = next();
+            if (v == "wht") tq_rot = 0; else if (v == "planar") tq_rot = 1; else if (v == "iso") tq_rot = 2; else if (v == "ggml") tq_rot = 3;
+            else { std::fprintf(stderr, "strata-q36: --kv-rot takes wht, planar, iso or ggml\n"); return 2; }
         }
         else if (a == "--draft-model") draft_pack = next();   // the DFlash2 pack (tools/dflash2_pack.py)
         else if (a == "--spec") df2_depth = std::max(1, std::atoi(next().c_str()));   // the DFlash2 window: drafts per step (up to 7)
@@ -4060,6 +4249,20 @@ int strata::qwen35::run(int argc, char** argv) {
     } report{E};
     E.reset();
     E.mtp_d = E.df2_on ? std::min(df2_depth, 7) : (m.has_mtp ? mtp_d : 0);
+    if (tq_k > 0 || tq_v > 0) {
+        auto okbits = [&](int b) { return b == 0 || (tq_rot == 3 ? (b == 4 || b == 8) : (b >= 2 && b <= 4)); };
+        if (!okbits(tq_k) || !okbits(tq_v) || m.g.head_dim % 128 != 0 || m.g.head_dim > 256 || batch > 1) {
+            std::fprintf(stderr, "strata-q36: --kv-turbo needs bits of 2, 3 or 4, a head dim of 128 or 256 and --batch 1\n");
+            return 2;
+        }
+        turbo_init_constants();
+        E.tq_kbits = tq_k;
+        E.tq_vbits = tq_v;
+        E.tq_mode = tq_rot;
+        E.tq_ncorr = tq_rot == 0 ? 1 : 0;   // TurboQuant corrects the norm, RotorQuant's reference does not
+        if (const char* nc = std::getenv("STRATA_Q36_TQ_NORMCORR")) E.tq_ncorr = std::atoi(nc) != 0;
+        std::fprintf(stderr, "strata-q36: KV codec (%s rotation%s): K %d bit, V %d bit (rounded as written; the cache stays fp32)\n", tq_rot == 0 ? "Walsh-Hadamard" : tq_rot == 1 ? "planar" : tq_rot == 2 ? "iso" : "ggml q8_0/q4_0", E.tq_ncorr ? ", norm corrected" : "", tq_k, tq_v);
+    }
     if (draft_vocab < 0 && std::getenv("STRATA_Q36_DRAFT_VOCAB") != nullptr) draft_vocab = std::atoi(std::getenv("STRATA_Q36_DRAFT_VOCAB"));
     E.draft_n = std::max(0, draft_vocab);
     E.bmtp = (batch_mtp || (std::getenv("STRATA_BATCH_MTP") != nullptr && std::string(std::getenv("STRATA_BATCH_MTP")) != "0")) && E.n_sess > 1 && E.mtp_d > 0;
@@ -4098,6 +4301,9 @@ int strata::qwen35::run(int argc, char** argv) {
     FILE* ff = dump_full.empty() ? nullptr : std::fopen(dump_full.c_str(), "wb");
     std::vector<float> lg;
     std::vector<int32_t> gen;
+    const bool nll_on = std::getenv("STRATA_Q36_NLL") != nullptr;   // the forced tokens' mean negative log-likelihood
+    double nll_sum = 0;
+    long long nll_n = 0, nll_top1 = 0;
     if (!emb_file.empty()) {
         if (!vision) { std::fprintf(stderr, "strata-q36: --emb needs --vision\n"); return 2; }
         ImgReq ir;
@@ -4143,11 +4349,24 @@ int strata::qwen35::run(int argc, char** argv) {
             E.host_logits(lg);
             std::fwrite(lg.data(), 4, lg.size(), ff);
         }
+        if (nll_on && i < (int) forced.size()) {   // teacher-forced log-likelihood of the next real token
+            E.host_logits(lg);
+            double mx = -1e30;
+            for (float v : lg) mx = std::max(mx, (double) v);
+            double se = 0;
+            for (float v : lg) se += std::exp((double) v - mx);
+            nll_sum += (std::log(se) + mx) - (double) lg[(size_t) forced[(size_t) i]];
+            ++nll_n;
+            if (a == forced[(size_t) i]) ++nll_top1;
+        }
         if (i + 1 == n_gen) break;
         const int32_t nx = i < (int) forced.size() ? forced[(size_t) i] : a;
         E.process(&nx, 1, [](int64_t) {});
     }
     if (ff) std::fclose(ff);
+    if (nll_on && nll_n > 0)
+        std::fprintf(stderr, "strata-q36: NLL %.5f over %lld forced tokens (perplexity %.4f), top-1 agrees on %.1f%%\n", nll_sum / (double) nll_n, nll_n,
+                     std::exp(nll_sum / (double) nll_n), 100.0 * (double) nll_top1 / (double) nll_n);
     std::printf("gen:");
     for (int t : gen) std::printf(" %d", t);
     std::printf("\n");
