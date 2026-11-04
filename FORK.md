@@ -100,6 +100,26 @@ matches exactly. The divergence is late, which fits near-tied tokens under diffe
 Ornith drafter (hidden 3072, block size 16) loads but is not run: its block size needs 16 rows, the drafter uses 8. The path is
 single-request (`--batch 1`); the serve loop is wired but untested, and there is no prompt-reuse handling (`begin_request`) yet.
 
+## DFlash2 on Ornith 1.5 122B (runs, but slower)
+
+The upstream-based build cannot load the Ornith file: its layer 0 experts are IQ1_S/IQ2_S, which the native expert kernels there do not take.
+The drafter was therefore added to the fork's engine (branch `ornith-dflash2` in the fork's repository, which already runs Ornith), keeping the
+same hooks. The drafter's block is 16 rows; the engine uses the first 8, so drafts are weaker than the pack was trained for.
+
+Ornith UD-IQ3_XXS, code prompt, 100 tokens, q8 KV, 8 threads, one run each (plain decode 8.9 tok/s code, 8.4 prose):
+
+| DFlash2 depth | Decode tok/s | Drafts accepted |
+|---|---|---|
+| 1 | 8.0 | 85% |
+| 2 | 7.5 | 65% |
+| 3 | 6.7 | 56% |
+| 4 | 5.3 | 38% (prose: 5.2, 34%) |
+
+Every depth is slower than plain decoding. Most of Ornith's experts sit in host memory, so a verify window of several rows reads several
+rows' worth of experts per step, and the drafter and its buffers take about 1.2 GiB of VRAM from the expert slots. The 8-row
+truncation may also be costing acceptance (Flash-Next reaches 65% and the 35B 45-73% with their native 8-row blocks). Not tried: the full
+16-row block, fewer taps, or a profile that gives the freed VRAM back to experts.
+
 ## Why test models of about 47 GB
 
 Flash-Next IQ3_XXS is a 75.96 GB file, but 28.80 GB of it is the PLE table (IQ4_NL, trigram-addressed). Decode reads about
