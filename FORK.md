@@ -66,6 +66,17 @@ Measured (RTX 4060 Ti VM, UD-Q4_K_XL, 200 tokens, temperature 0, one run each, n
 | prose (immune system) | 57.7 | 63.2 | 49% |
 | JSON list | 51.7 | 56.9 | 45% |
 
+Q8_0 file (`Qwen3.6-35B-A3B-Q8_0.gguf`, no MTP block, 35 GB so most experts sit in host memory), same prompts, depth 5:
+
+| Prompt | Plain decode | DFlash2 | Drafts accepted |
+|---|---|---|---|
+| code | 32.4 tok/s | 38.9 (+20%) | 67% |
+| prose | 32.9 | 37.4 (+14%) | 54% |
+| JSON | 32.4 | 34.4 (+6%) | 49% |
+
+The Q8_0 file needed one loader change: `nextn_predict_layers` is now optional in the architecture guard (a file without it has no MTP
+block). DFlash2 is an external pack, so it does not depend on that block. The prose answer matched plain decoding token for token.
+
 Code prompt at other settings: DFlash2 depth 3 reached 80.0 (84% accepted), depth 7 reached 88.4 (63%), and the model's own MTP at depth 2
 reached 80.5 (83%). Before the buffer fixes the same pipeline accepted 2 of 625 drafts.
 
