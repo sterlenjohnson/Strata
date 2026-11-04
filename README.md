@@ -1,3 +1,6 @@
+> [!NOTE]
+> **This is a fork of [Niko1221/Strata](https://github.com/Niko1221/Strata) (branch `cuda-ada-4060ti`, based on v0.2.10) for an RTX 4060 Ti 16 GB on a Fedora VM under Proxmox.** It adds notes only, no code changes yet: see [`FORK.md`](FORK.md) for the production Flash-Next setup and numbers, DFlash2 vs MTP, and the work in progress on Bolt, Super-VL and Ornith. The fork's own commits (tool-call recovery, Nemotron-H/Bolt, Ornith, 4060 Ti tuning) are not ported onto this version yet.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="apps/host/public/brand/strata-lockup-dark.svg">
