@@ -250,9 +250,10 @@ bool Dflash2Drafter::alloc(std::string& err) {
         return true;
     };
     const size_t B = kRows;
-    bool ok = dev(&d_meta_, 32) && dev(&xq_, kernels::native_q8_1_bytes(N_, kRows) + 4096) && dev(&xil_, kernels::native_q8_1_il_bytes(N_, kRows) + 4096) && dev(&xqp_, (size_t) 5 * N_ * 8 + 4096) && dev(&xdp_, (size_t) 5 * N_ / 32 * 8 + 64) && dev(&xqc_, (size_t) 5 * N_ * 8 + 4096) && dev(&xdc_, (size_t) 5 * N_ / 32 * 8 + 64) && dev(&rt_ctx_, 2 * B * 128) && dev(&rope_inv_, 64) &&
+    const size_t ntap_ = std::max<size_t>(taps_.size(), 1);   // the quantized taps: the pack's tap count (5 for Flash-Next, 8 for the Qwen3.6 drafters)
+    bool ok = dev(&d_meta_, 32) && dev(&xq_, kernels::native_q8_1_bytes(N_, kRows) + 4096) && dev(&xil_, kernels::native_q8_1_il_bytes(N_, kRows) + 4096) && dev(&xqp_, ntap_ * N_ * 8 + 4096) && dev(&xdp_, ntap_ * N_ / 32 * 8 + 64) && dev(&xqc_, ntap_ * N_ * 8 + 4096) && dev(&xdc_, ntap_ * N_ / 32 * 8 + 64) && dev(&rt_ctx_, 2 * B * 128) && dev(&rope_inv_, 64) &&
               dev(&fcy_, B * N_) && dev(&hctx_, B * N_) && dev(&kc_, B * NKV_ * HD_) && dev(&vc_, B * NKV_ * HD_) && dev(&h_, B * N_) && dev(&xn_, B * N_) &&
-              dev(&xc_, B * N_) && dev(&dyn_, B * 640) && dev(&q_, B * NH_ * HD_) && dev(&qn_, B * NH_ * HD_) && dev(&k_, B * NKV_ * HD_) && dev(&v_, B * NKV_ * HD_) &&
+              dev(&xc_, B * N_) && dev(&dyn_, B * (N_ / 4)) && dev(&q_, B * NH_ * HD_) && dev(&qn_, B * NH_ * HD_) && dev(&k_, B * NKV_ * HD_) && dev(&v_, B * NKV_ * HD_) &&
               dev(&kblk_, B * NKV_ * HD_) && dev(&ao_, B * NH_ * HD_) && dev(&o_, B * N_) && dev(&gate_, B * I_) && dev(&up_, B * I_) && dev(&mlp_, B * N_) &&
               dev(&part_, (size_t) kernels::kDf2MaxChunks * 8 * 32 * 130) && dev(&fn_, B * N_) && dev(&topval_, kDrafts * 16) && dev(&toptok_, kDrafts * 16) &&
               dev(&hsel_, kDrafts * rank_) && dev(&topscratch_, (size_t) kDrafts * kernels::kDf2TopBlocks * kernels::kDf2TopK * 2);
@@ -276,10 +277,10 @@ bool Dflash2Drafter::alloc(std::string& err) {
     cudaMemset(tag_, 0xff, (size_t) kRing * 8);   // -1: no slot holds a context row yet
     for (int64_t& t : slot_pos_) t = -1;
     init_ring_log();
-    cudaMemset(xqp_, 0, (size_t) 5 * N_ * 8 + 4096);
-    cudaMemset(xdp_, 0, ((size_t) 5 * N_ / 32 * 8 + 64) * 4);
-    cudaMemset(xqc_, 0, (size_t) 5 * N_ * 8 + 4096);
-    cudaMemset(xdc_, 0, ((size_t) 5 * N_ / 32 * 8 + 64) * 4);
+    cudaMemset(xqp_, 0, ntap_ * N_ * 8 + 4096);
+    cudaMemset(xdp_, 0, (ntap_ * N_ / 32 * 8 + 64) * 4);
+    cudaMemset(xqc_, 0, ntap_ * N_ * 8 + 4096);
+    cudaMemset(xdc_, 0, (ntap_ * N_ / 32 * 8 + 64) * 4);
     for (int l = 0; l < L_; ++l) { cudaMemset(kring_[l], 0, (size_t) kRing * NKV_ * HD_ * 4); cudaMemset(vring_[l], 0, (size_t) kRing * NKV_ * HD_ * 4); }
     return cudaDeviceSynchronize() == cudaSuccess;
 }
@@ -480,7 +481,7 @@ bool Dflash2Drafter::record_block(cudaStream_t cs, std::string& err, bool rope) 
             const std::string op = p + "self_attn.o_proj.weight";
             if (!skip_part("tiny")) gemm({akp.c_str()}, {dyn_}, B, cs, xqp_, xdp_);
             stamp("gemm:akp");
-            if (!skip_part("small")) df2_conv_quant(xn_, dyn_, 640, base_a, B, N_, group_, xqp_, xdp_, cs);
+            if (!skip_part("small")) df2_conv_quant(xn_, dyn_, N_ / 4, base_a, B, N_, group_, xqp_, xdp_, cs);
             stamp("df2_conv_quant");
             if (!skip_part("qkvo")) gemm({qp.c_str(), kp.c_str(), vp.c_str()}, {q_, k_, v_}, B, cs, xqp_, xdp_);
             stamp("gemm:qp");
@@ -491,11 +492,11 @@ bool Dflash2Drafter::record_block(cudaStream_t cs, std::string& err, bool rope) 
             stamp("df2_attention");
             if (!skip_part("qkvo")) gemm({op.c_str()}, {o_}, B, cs, xqp_, xdp_);
             stamp("gemm:o_proj");
-            if (!skip_part("small")) df2_conv_rms_quant(o_, dyn_ + 320, 640, base_a + 2 * N_, h_, f32(p + "post_attention_layernorm.weight"), xn_, B, N_, group_, eps_, xqp_, xdp_, cs);
+            if (!skip_part("small")) df2_conv_rms_quant(o_, dyn_ + N_ / 8, N_ / 4, base_a + 2 * N_, h_, f32(p + "post_attention_layernorm.weight"), xn_, B, N_, group_, eps_, xqp_, xdp_, cs);
             stamp("df2_conv_rms_quant");
             if (!skip_part("tiny")) gemm({mkp.c_str()}, {dyn_}, B, cs, xqp_, xdp_);
             stamp("gemm:mkp");
-            if (!skip_part("small")) df2_conv_quant(xn_, dyn_, 640, base_m, B, N_, group_, xqp_, xdp_, cs);
+            if (!skip_part("small")) df2_conv_quant(xn_, dyn_, N_ / 4, base_m, B, N_, group_, xqp_, xdp_, cs);
             stamp("df2_conv_quant");
             if (!skip_part("mlp")) gemm({gp.c_str(), up.c_str()}, {gate_, up_}, B, cs, xqp_, xdp_);
             stamp("gemm:gp");
@@ -505,7 +506,7 @@ bool Dflash2Drafter::record_block(cudaStream_t cs, std::string& err, bool rope) 
             stamp("gemm:mlp.down_proj");
             // the next layer's input norm, or after the last layer the final norm (-> fn_, the rows the head and the selector read)
             const std::string next_gamma = l + 1 < L_ ? "layers." + std::to_string(l + 1) + ".input_layernorm.weight" : std::string("norm.weight");
-            if (!skip_part("small")) df2_conv_rms_quant(mlp_, dyn_ + 320, 640, base_m + 2 * N_, h_, f32(next_gamma), l + 1 < L_ ? xn_ : fn_, B, N_, group_, eps_, xqp_, xdp_, cs);
+            if (!skip_part("small")) df2_conv_rms_quant(mlp_, dyn_ + N_ / 8, N_ / 4, base_m + 2 * N_, h_, f32(next_gamma), l + 1 < L_ ? xn_ : fn_, B, N_, group_, eps_, xqp_, xdp_, cs);
             stamp("df2_conv_rms_quant");
         }
         native_quantize_q8_1(fn_ + N_, xq_, N_, ndraft_, cs);   // rows 1..7, the head's format

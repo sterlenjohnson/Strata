@@ -43,6 +43,37 @@ DFlash2 needs `--mtp-draft-vocab` pointed at `data/draft_vocab.bin` and loads no
 production stays on MTP. The run is not perfectly matched (binary version, pool workers), covers three short prompts and
 one run each, and does not test long context.
 
+## DFlash2 on Qwen3.6-35B-A3B (new in this branch)
+
+Upstream v0.2.10 runs the DFlash2 drafter only on Flash-Next. This branch runs the Qwen3.6-35B-A3B drafter
+(`qwen3.6-35b-a3b-dflash2.q8.pack`) on the 35B itself (`strata --model <35B GGUF> --draft dflash2 --draft-model <pack> --spec 5`).
+
+What changed:
+- **Drafter shapes** (`src/core/dflash2.cpp`): the loader took only hidden size 2560. It now follows the pack, and two buffers that were
+  sized for Flash-Next are fixed: the quantized-tap buffers held 5 taps (the 35B has 8, so the context kernels overflowed them) and the
+  convolution coefficients were laid out 640 wide with the second half at +320 (that width is hidden/4: 512 for the 35B). Flash-Next's
+  2560 gives the same values as before.
+- **Engine hooks** (`src/qwen35/q36_engine.cu`): taps are copied out of the residual stream after the pack's 8 layers, in the prompt
+  chunks, single steps and verify windows; the drafter reads the engine's own embedding and output matrix (no copy); a DFlash2 step
+  drafts, verifies the window and commits like the MTP step. `STRATA_Q36_DF2_TAP_SHIFT` moves the tap layers (0 = after the layer the pack
+  names); `STRATA_Q36_DF2_TRACE=1` prints drafts against picks.
+
+Measured (RTX 4060 Ti VM, UD-Q4_K_XL, 200 tokens, temperature 0, one run each, no KV quantization, 8 CPU threads):
+
+| Prompt | Plain decode | DFlash2 depth 5 | Drafts accepted |
+|---|---|---|---|
+| code (LRU cache) | 55.6 tok/s | 90.7 | 73% |
+| prose (immune system) | 57.7 | 63.2 | 49% |
+| JSON list | 51.7 | 56.9 | 45% |
+
+Code prompt at other settings: DFlash2 depth 3 reached 80.0 (84% accepted), depth 7 reached 88.4 (63%), and the model's own MTP at depth 2
+reached 80.5 (83%). Before the buffer fixes the same pipeline accepted 2 of 625 drafts.
+
+Caveats: DFlash2 output matches plain decoding for the first 111-137 tokens of each 200-token answer and then differs; the MTP at depth 2
+matches exactly. The divergence is late, which fits near-tied tokens under different window kernels, but it is not proven to be that. The
+Ornith drafter (hidden 3072, block size 16) loads but is not run: its block size needs 16 rows, the drafter uses 8. The path is
+single-request (`--batch 1`); the serve loop is wired but untested, and there is no prompt-reuse handling (`begin_request`) yet.
+
 ## Why test models of about 47 GB
 
 Flash-Next IQ3_XXS is a 75.96 GB file, but 28.80 GB of it is the PLE table (IQ4_NL, trigram-addressed). Decode reads about

@@ -60,6 +60,11 @@
 #include <type_traits>
 #include <vector>
 
+#if defined(STRATA_HAVE_DFLASH2)
+#include "strata/core/dflash2.hpp"
+#include "strata/kernels/native_mmvq.hpp"
+#endif
+
 namespace {
 
 namespace K = strata::kernels;
@@ -197,6 +202,13 @@ __global__ void k_gdn_ab(const float* Wa, const float* Wb, const float* x, const
     if (isb) beta[(size_t) blockIdx.y * HV + r] = sigm(acc);
     else alpha[(size_t) blockIdx.y * HV + r] = softplus(acc + dt[r]) * ssm_a[r];
 }
+/// DFlash2: row r of x ([T][N], the residual stream) into row r of dst ([T][stride]) at dst's tap column offset.
+__global__ void k_tap(const float* x, float* dst, int N, int stride) {
+    const float* xr = x + (size_t) blockIdx.x * N;
+    float* dr = dst + (size_t) blockIdx.x * stride;
+    for (int i = threadIdx.x; i < N; i += blockDim.x) dr[i] = xr[i];
+}
+
 __global__ void k_add(float* x, const float* y, int64_t n) {
     const int64_t i = (int64_t) blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) x[i] += y[i];
@@ -1191,6 +1203,7 @@ struct Engine {
     __half* x16 = nullptr;
     bool use_graph = true;
     int mtp_d = 0;   // MTP drafts per speculative step (0: none; greedy requests only)
+    bool df2_on = false;   // the drafts come from the DFlash2 drafter (mtp_d is then its depth)
 
     // ---- sessions: the conversation states.  One for a single-request engine; --batch N keeps N, each with its own
     // recurrent state and KV cache, so N requests run at once: their rows share one decode window (forward_rows).  The
@@ -1521,6 +1534,9 @@ struct Engine {
         CK(cudaStreamSynchronize(st));
         pos = 0;
         sess[(size_t) cur].pos = 0;
+#if defined(STRATA_HAVE_DFLASH2)
+        if (df2_on) { df2.reset(); df2_pend_n = 0; }
+#endif
         set_delta(0);
     }
 
@@ -2094,6 +2110,11 @@ struct Engine {
             const bool last = l + 1 == m->layers.size();
             layer(m->layers[l], l, T, p0, pos0, graph_mode, verify, last ? m->out_norm : m->layers[l + 1].attn_norm,
                   last ? hmain : h);
+#if defined(STRATA_HAVE_DFLASH2)
+            if (df2_on)
+                for (int k = 0; k < df2_ntap; ++k)
+                    if (df2_layers[(size_t) k] == (int) l) k_tap<<<T, kThreads, 0, st>>>(x, tapbuf + (size_t) k * N, N, df2_ntap * N);
+#endif
         }
         if (heads > 0) head_rows(hmain + (size_t) (T - heads) * N, heads, logits, pick);
     }
@@ -2448,6 +2469,9 @@ struct Engine {
             CK(cudaMemcpyAsync(tok, hpin, 4, cudaMemcpyHostToDevice, st));
             CK(cudaMemcpyAsync(pos0, hpin + 1, 4, cudaMemcpyHostToDevice, st));
             chunk_pictures(pos, 1);
+#if defined(STRATA_HAVE_DFLASH2)
+            df2_flush();
+#endif
             rows_deferred = true;
             // a prompt cell of a picture request (its rotary position is in the table, its row a picture's) runs eagerly
             if (mtab_now || map_on) forward(1, pos, 1, false, false);
@@ -2456,6 +2480,9 @@ struct Engine {
             map_on = false;
             rows_deferred = false;
             CK(cudaMemcpyAsync(hlast, hmain, (size_t) N * 4, cudaMemcpyDeviceToDevice, st));
+#if defined(STRATA_HAVE_DFLASH2)
+            if (df2_on) { df2_pend_n = 1; df2_pend_pos = pos; }
+#endif
             pos += 1;
             after_rows(1);
             on_chunk(1);
@@ -2468,8 +2495,18 @@ struct Engine {
             CK(cudaMemcpyAsync(tok, toks + i, (size_t) T * 4, cudaMemcpyHostToDevice, st));
             CK(cudaMemcpyAsync(pos0, hpin + 1, 4, cudaMemcpyHostToDevice, st));
             chunk_pictures(pos, T);
+#if defined(STRATA_HAVE_DFLASH2)
+            df2_flush();
+#endif
             forward(T, pos, i + T == n ? 1 : 0, false, false);
-            if (m->has_mtp && mtp_d > 0) {
+#if defined(STRATA_HAVE_DFLASH2)
+            if (df2_on) { df2_pend_n = T; df2_pend_pos = pos; }
+#endif
+            if (m->has_mtp && mtp_d > 0
+#if defined(STRATA_HAVE_DFLASH2)
+                && !df2_on
+#endif
+            ) {
                 // seeds: h_{q-1} for each row q: hlast, then this chunk's rows 0 .. T - 2 (in `y`, free here)
                 CK(cudaMemcpyAsync(mtp_seed(), hlast, (size_t) N * 4, cudaMemcpyDeviceToDevice, st));
                 if (T > 1)
@@ -2682,6 +2719,126 @@ struct Engine {
     /// the MTP seed rows of a prompt chunk: a buffer the block's own forward does not use (`moe_out`, [tmax][N])
     float* mtp_seed() { return moe_out; }
 
+#if defined(STRATA_HAVE_DFLASH2)
+    // ---- DFlash2: the block drafter of incoai/Qwen3.6-35B-A3B-DFlash2.  It reads the target's residual stream after 8 layers
+    // (its pack names them), drafts up to 7 tokens in one pass, and the main model verifies them as a window, as with the MTP.
+    strata::core::Dflash2Drafter df2;
+    std::vector<int> df2_layers;     // the layer after which each tap is read
+    int df2_ntap = 0;
+    float* tapbuf = nullptr;         // [rows][df2_ntap * N]: the taps of the rows the last forward ran (the drafter's graphs are captured on this pointer)
+    int df2_pend_n = 0;              // committed rows whose taps wait in tapbuf (positions df2_pend_pos ...) for the drafter
+    int64_t df2_pend_pos = 0;
+
+    /// Loads the pack and binds the drafter to this model's embedding and output matrix (no copy: the drafter reads the engine's own head).
+    /// Called after init() and before place_experts(), so the experts are sized from what is left.
+    bool df2_init(const std::string& pack, std::string& err) {
+        const int N = (int) m->g.n_embd;
+        int dev = 0;
+        cudaGetDevice(&dev);
+        if (!df2.load(pack, dev, err)) return false;
+        if (df2.n_embd() != N) {
+            err = "dflash2: the drafter's hidden size " + std::to_string(df2.n_embd()) + " is not this model's " + std::to_string(N);
+            return false;
+        }
+        if (m->head.d == nullptr || !K::native_mmvq_supported(m->head.type) || m->head.n_in != N) {
+            err = "dflash2: this model's output matrix (ggml type " + std::to_string(m->head.type) + ") is not one the drafter's head kernel reads";
+            return false;
+        }
+        auto embed = [this, N](const int32_t* t, int n, float* out, cudaStream_t s) {
+            K::iq_embed_rows(m->embd_type, m->embd, m->embd_row, t, n, N, out, s);
+        };
+        if (!df2.bind_raw(embed, m->head.d, m->head.type, m->head.n_out, {}, err)) return false;
+        df2_layers = df2.tap_layers();
+        df2_ntap = (int) df2_layers.size();
+        // STRATA_Q36_DF2_TAP_SHIFT: the tap is read after layer (id + shift); 0 = after the layer the pack names
+        const int shift = std::getenv("STRATA_Q36_DF2_TAP_SHIFT") ? std::atoi(std::getenv("STRATA_Q36_DF2_TAP_SHIFT")) : 0;
+        for (int& l : df2_layers) {
+            l += shift;
+            if (l < 0 || l >= (int) m->layers.size()) { err = "dflash2: a tap layer is outside the model"; return false; }
+        }
+        tapbuf = dalloc((size_t) tmax * (size_t) df2_ntap * (size_t) N);
+        df2_on = true;
+        return true;
+    }
+
+    /// The rows waiting in tapbuf go to the drafter's context (before a forward overwrites them).
+    void df2_flush() {
+        if (!df2_on || df2_pend_n <= 0) return;
+        CK(cudaStreamSynchronize(st));
+        std::string err;
+        if (!df2.context(tapbuf, df2_pend_n, df2_pend_pos, err)) std::fprintf(stderr, "strata-q36: %s\n", err.c_str());
+        df2_pend_n = 0;
+    }
+
+    /// The drafts for the token `anchor` that follows the waiting rows (1 .. 8 of them go with the draft; more, and the leading ones are context first).
+    bool df2_draft(int32_t anchor, int32_t* dd, float* pp) {
+        if (df2_pend_n <= 0) return false;
+        const int N = (int) m->g.n_embd;
+        const size_t row = (size_t) df2_ntap * (size_t) N;
+        CK(cudaStreamSynchronize(st));
+        std::string err;
+        int n = df2_pend_n;
+        int64_t p = df2_pend_pos;
+        if (n > strata::core::Dflash2Drafter::kRows) {
+            if (!df2.context(tapbuf, n - 1, p, err)) { std::fprintf(stderr, "strata-q36: %s\n", err.c_str()); df2_pend_n = 0; return false; }
+            CK(cudaMemcpy(tapbuf, tapbuf + (size_t) (n - 1) * row, row * 4, cudaMemcpyDeviceToDevice));
+            p += n - 1;
+            n = 1;
+        }
+        df2_pend_n = 0;
+        if (!df2.draft(tapbuf, n, p, anchor, dd, pp, err)) { std::fprintf(stderr, "strata-q36: %s\n", err.c_str()); return false; }
+        return true;
+    }
+
+    /// spec_step with the DFlash2 drafts.  The window and the commit are the MTP step's; the rows it keeps leave their taps in tapbuf for the next draft.
+    int spec_step_df2(int x_tok, int D, std::vector<int32_t>& drafts, int32_t* picks, const std::atomic<bool>* cancel) {
+        const int N = (int) m->g.n_embd;
+        D = std::min<int>(D, strata::core::Dflash2Drafter::kDrafts);
+        if (main_hybrid) D = std::min<int>(D, (int) (kRebalanceEvery - pos % kRebalanceEvery) - 1);
+        drafts.assign((size_t) std::max(D, 0), 0);
+        int32_t dd[strata::core::Dflash2Drafter::kDrafts];
+        float pp[strata::core::Dflash2Drafter::kDrafts];
+        if (D > 0 && df2_draft(x_tok, dd, pp)) {
+            for (int d = 0; d < D; ++d) drafts[(size_t) d] = dd[d];
+        } else {
+            D = 0;
+            drafts.clear();
+            df2_flush();
+        }
+        const int T = D + 1;
+        CK(cudaStreamSynchronize(st));
+        hpin[16] = x_tok;
+        for (int d = 0; d < D; ++d) hpin[17 + d] = drafts[(size_t) d];
+        hpin[1] = (int32_t) pos;
+        CK(cudaMemcpyAsync(tok, hpin + 16, (size_t) T * 4, cudaMemcpyHostToDevice, st));
+        CK(cudaMemcpyAsync(pos0, hpin + 1, 4, cudaMemcpyHostToDevice, st));
+        rows_deferred = true;
+        graph_run(gs().gv[T], [&] { forward(T, pos, T, use_graph, true); });
+        rows_deferred = false;
+        CK(cudaMemcpyAsync(hpin + 2, pick, (size_t) T * 4, cudaMemcpyDeviceToHost, st));
+        CK(cudaStreamSynchronize(st));
+        int a = 0;
+        while (a < D && hpin[2 + a] == drafts[(size_t) a]) ++a;
+        if (cancel != nullptr && cancel->load()) a = 0;
+        for (int i = 0; i <= a; ++i) picks[i] = hpin[2 + i];
+        static const bool trace = std::getenv("STRATA_Q36_DF2_TRACE") != nullptr;
+        if (trace) {   // diagnostics: what the drafter proposed against what the main model picked, window by window
+            std::fprintf(stderr, "df2 pos %lld x %d  drafts:", (long long) pos, x_tok);
+            for (int d = 0; d < D; ++d) std::fprintf(stderr, " %d", drafts[(size_t) d]);
+            std::fprintf(stderr, "  picks:");
+            for (int i = 0; i < T; ++i) std::fprintf(stderr, " %d", hpin[2 + i]);
+            std::fprintf(stderr, "  a=%d\n", a);
+        }
+        commit(a + 1);
+        CK(cudaMemcpyAsync(hlast, hmain + (size_t) a * N, (size_t) N * 4, cudaMemcpyDeviceToDevice, st));
+        df2_pend_n = a + 1;     // the window's first a + 1 rows are kept: their taps are rows 0 .. a of tapbuf
+        df2_pend_pos = pos;
+        pos += a + 1;
+        after_rows(a + 1);
+        return a;
+    }
+#endif
+
     /// One speculative step with D MTP drafts (greedy): `x` is the next token (decided, not processed); `fix` the
     /// tokens of the rows the block must redo first (the drafts the last window accepted, seeded by hmain rows
     /// 0 .. fix.size() - 1 of that window).  Drafts d1 .. dD, then the window [x, d1 .. dD] through the main model;
@@ -2691,6 +2848,9 @@ struct Engine {
     /// hand-over of a stopped request to a batch slot) reuses it instead of reading them again.
     int spec_step(int x_tok, const std::vector<int32_t>& fix, int D, std::vector<int32_t>& drafts, int32_t* picks,
                   const std::atomic<bool>* cancel = nullptr) {
+#if defined(STRATA_HAVE_DFLASH2)
+        if (df2_on) return spec_step_df2(x_tok, D, drafts, picks, cancel);
+#endif
         const int N = (int) m->g.n_embd;
         if (main_hybrid) D = std::min<int>(D, (int) (kRebalanceEvery - pos % kRebalanceEvery) - 1);
         const int T0 = (int) fix.size() + 1;   // the redo rows and the row of x
@@ -3729,6 +3889,9 @@ int strata::qwen35::run(int argc, char** argv) {
     std::string model, tokens, force, dump_full, emb_file;
     int ctx = 32768, chunk = 0, n_gen = 64, bench_pp = 0, bench_tg = 0, mtp_d = 0, cpu_threads = 0, hybrid_rows = 128;
     double expert_vram = -1.0;
+    bool draft_df2 = false;      // --draft dflash2 --draft-model PACK
+    std::string draft_pack;
+    int df2_depth = 5;
     bool warm = true;
     int expert_slots = 0, batch = 0, draft_vocab = -1;
     bool serve_mode = false, graph = true, vision = false, batch_mtp = false;
@@ -3773,15 +3936,19 @@ int strata::qwen35::run(int argc, char** argv) {
         else if (a == "--expert-slots") expert_slots = std::atoi(next().c_str());
         else if (a == "--hybrid-rows") hybrid_rows = std::atoi(next().c_str());
         else if (a == "--draft") {
-            // DFlash2 has no verify path in this family (it exists only for Flash-Next): a start that names it fails
-            // with the reason, rather than being skipped below and running with no drafter at all
             const std::string v = next();
             if (v == "dflash2") {
-                std::fprintf(stderr, "strata-q36: --draft dflash2 is not available for this family (qwen35moe: Ornith, "
-                                     "Qwen3.6-35B-A3B); its drafter is the GGUF's own MTP block: --mtp N\n");
+#if defined(STRATA_HAVE_DFLASH2)
+                draft_df2 = true;
+#else
+                std::fprintf(stderr, "strata-q36: --draft dflash2 needs a build with the DFlash2 drafter\n");
                 return 2;
+#endif
             }
         }
+        else if (a == "--draft-model") draft_pack = next();   // the DFlash2 pack (tools/dflash2_pack.py)
+        else if (a == "--spec") df2_depth = std::max(1, std::atoi(next().c_str()));   // the DFlash2 window: drafts per step (up to 7)
+        else if (a == "--draft-fallback" || a == "--draft-conf" || a == "--draft-cap" || a == "--mtp-draft-vocab") (void) next();
         else if (serve_mode && a.rfind("--", 0) == 0) {
             // serve passes the config's args plus a few of its own: one this engine does not have is said and skipped
             // (with its value), not fatal
@@ -3864,6 +4031,15 @@ int strata::qwen35::run(int argc, char** argv) {
                          fr / 1073741824.0, fr_raw / 1073741824.0, packed / 1073741824.0, experts / 1073741824.0, chunk);
     }
     E.init(m, ctx, chunk, batch, vision);
+#if defined(STRATA_HAVE_DFLASH2)
+    if (draft_df2) {
+        if (draft_pack.empty()) { std::fprintf(stderr, "strata-q36: --draft dflash2 needs --draft-model PACK\n"); return 2; }
+        if (batch > 1) { std::fprintf(stderr, "strata-q36: --draft dflash2 drafts for one request at a time (--batch 1)\n"); return 2; }
+        if (!E.df2_init(draft_pack, err)) { std::fprintf(stderr, "strata-q36: %s\n", err.c_str()); return 1; }
+        std::fprintf(stderr, "strata-q36: DFlash2 drafter on (%s), %d taps, windows of up to %d drafts\n", draft_pack.c_str(), E.df2_ntap,
+                     std::min(df2_depth, (int) strata::core::Dflash2Drafter::kDrafts));
+    }
+#endif
     if (!place_experts(m, E, expert_vram, cpu_threads, hybrid_rows, expert_slots, err)) {
         std::fprintf(stderr, "strata-q36: %s\n", err.c_str());
         return 1;
@@ -3883,7 +4059,7 @@ int strata::qwen35::run(int argc, char** argv) {
         }
     } report{E};
     E.reset();
-    E.mtp_d = m.has_mtp ? mtp_d : 0;
+    E.mtp_d = E.df2_on ? std::min(df2_depth, 7) : (m.has_mtp ? mtp_d : 0);
     if (draft_vocab < 0 && std::getenv("STRATA_Q36_DRAFT_VOCAB") != nullptr) draft_vocab = std::atoi(std::getenv("STRATA_Q36_DRAFT_VOCAB"));
     E.draft_n = std::max(0, draft_vocab);
     E.bmtp = (batch_mtp || (std::getenv("STRATA_BATCH_MTP") != nullptr && std::string(std::getenv("STRATA_BATCH_MTP")) != "0")) && E.n_sess > 1 && E.mtp_d > 0;
@@ -3954,9 +4130,9 @@ int strata::qwen35::run(int argc, char** argv) {
         std::printf("gen:");
         for (int t : gen) std::printf(" %d", t);
         std::printf("\n");
-        std::fprintf(stderr, "strata-q36: prompt %zu tokens in %.1f ms, %zu generated in %.1f ms (%.1f tok/s), MTP %d drafts: "
+        std::fprintf(stderr, "strata-q36: prompt %zu tokens in %.1f ms, %zu generated in %.1f ms (%.1f tok/s), %s %d drafts: "
                      "%lld of %lld accepted (%.0f%%)\n", prompt.size(), pp_ms, gen.size(), ms_since(t1),
-                     gen.size() / (ms_since(t1) / 1000.0), E.mtp_d, accepted, offered,
+                     gen.size() / (ms_since(t1) / 1000.0), E.df2_on ? "DFlash2" : "MTP", E.mtp_d, accepted, offered,
                      offered ? 100.0 * accepted / offered : 0.0);
         return 0;
     }
