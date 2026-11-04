@@ -1039,8 +1039,8 @@ bool load(const std::string& path, Model& m, std::string& err, bool want_mtp) {
     m.layers.resize((size_t) g.n_layers);
     // the MTP block whenever the file has one, with or without drafts (--mtp): the VRAM it takes is then the same
     // either way, so the hybrid mode's slot tables - and with them the greedy text - do not depend on --mtp
-    (void) want_mtp;
-    m.has_mtp = g.n_mtp_layers > 0;
+    // want_mtp false (a DFlash2 start, which drafts without the file's own MTP block): the block is left unread and its experts take no room
+    m.has_mtp = g.n_mtp_layers > 0 && want_mtp;
     for (int64_t l = 0; l < g.n_layers + (m.has_mtp ? 1 : 0); ++l) {
         const bool is_mtp = l == g.n_layers;
         Layer& y = is_mtp ? m.mtp : m.layers[(size_t) l];
@@ -3979,7 +3979,7 @@ int strata::qwen35::run(int argc, char** argv) {
     Model m;
     std::string err;
     try {
-        if (!load(model, m, err, mtp_d > 0)) { std::fprintf(stderr, "strata-q36: %s\n", err.c_str()); return 1; }
+        if (!load(model, m, err, mtp_d > 0 || !draft_df2)) { std::fprintf(stderr, "strata-q36: %s\n", err.c_str()); return 1; }
     } catch (const std::exception& e) {
         std::fprintf(stderr, "strata-q36: %s\n", e.what());
         return 1;

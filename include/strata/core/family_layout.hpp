@@ -249,8 +249,11 @@ inline bool check_gguf_layout(const strata::GgufModel& m, const ModelGeometry& g
             err = "missing " + name;
             return false;
         }
-        bool same = t->shape.size() == shape.size();
-        for (size_t i = 0; same && i < shape.size(); ++i) same = t->shape[i] == (uint64_t) shape[i];
+        // a trailing dimension of 1 is the same data ([3072, 1] and [3072]: Ornith's shared-expert gate)
+        std::vector<int64_t> have(t->shape.begin(), t->shape.end()), need = shape;
+        while (have.size() > 1 && have.back() == 1) have.pop_back();
+        while (need.size() > 1 && need.back() == 1) need.pop_back();
+        bool same = have == need;
         if (!same) {
             std::string got, want;
             for (uint64_t d : t->shape) got += (got.empty() ? "" : ", ") + std::to_string(d);
