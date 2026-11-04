@@ -3772,6 +3772,16 @@ int strata::qwen35::run(int argc, char** argv) {
         else if (a == "--cpu-threads") cpu_threads = std::atoi(next().c_str());
         else if (a == "--expert-slots") expert_slots = std::atoi(next().c_str());
         else if (a == "--hybrid-rows") hybrid_rows = std::atoi(next().c_str());
+        else if (a == "--draft") {
+            // DFlash2 has no verify path in this family (it exists only for Flash-Next): a start that names it fails
+            // with the reason, rather than being skipped below and running with no drafter at all
+            const std::string v = next();
+            if (v == "dflash2") {
+                std::fprintf(stderr, "strata-q36: --draft dflash2 is not available for this family (qwen35moe: Ornith, "
+                                     "Qwen3.6-35B-A3B); its drafter is the GGUF's own MTP block: --mtp N\n");
+                return 2;
+            }
+        }
         else if (serve_mode && a.rfind("--", 0) == 0) {
             // serve passes the config's args plus a few of its own: one this engine does not have is said and skipped
             // (with its value), not fatal
