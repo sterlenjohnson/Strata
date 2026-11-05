@@ -183,6 +183,37 @@ variant), Kolibri-1 (78B total, 3.46B active, so smaller than this range), and g
 about 63 GB in its native MXFP4 form, over the arena). A web search found no other recent model of this size with a
 confirmed GGUF, so check Hugging Face directly before downloading anything.
 
+### Flash-Next production tuning (2026-11-05)
+
+Production binary and config, three 300-token prompts (code, prose, code), temperature 0, one run each; differences under about 3 tok/s are noise
+(two identical base runs averaged 41.5 and 41.9).
+
+| Setting | Avg tok/s |
+|---|---|
+| Base (`--spec 4`, min-p 0.5, 5 pool workers, 700 MiB reserve, int8 KV) | 41.5 / 41.9 |
+| `--spec 2` / 3 / 5 / 6 | 38.9-41.0 / 42.0 / 38.6 / 36.2 |
+| `--spec 1` | does not start (native packs need `--spec` of at least 2) |
+| `--spec-min-p` 0.7 | 40.6 (0.3 failed to start, untested) |
+| Pool workers 4 / 6 | 38.4 / 38.2 |
+| VRAM reserve 500 MiB | 41.3 |
+| DFlash2 (v0.2.10 build) `--spec` 4 / 3 / 2 | 37.6 / 40.7 / 36.6 |
+| DFlash2 with `--kv q4_0` / `--kv k8v4` | 36.8 / 42.8 |
+| MTP, int8 vs `--kv k8v4`, three alternating runs each | 39.7 vs 40.7 (not significant) |
+
+Nothing beat the production config. The DFlash2 drafter's own K/V ring is fp32 and about 135 MiB, so shrinking it would free less than one expert slot.
+
+Full-context test (262k setting, prompts built from source files, 200 tokens, one run each):
+
+| Prompt tokens | int8 prefill / decode | k8v4 prefill / decode |
+|---|---|---|
+| ~31-34k | 1,273 tok/s / 39.8 | 1,074 / 39.7 |
+| ~129k | 1,223 / 46.3 | 1,224 / 44.9 |
+| ~227-229k | 1,202 / 48.0 | 1,177 / 43.1 |
+
+Prefill falls about 6% from 31k to 227k. Decode does not fall; it rises because source text drafts well, so it says nothing about context cost.
+k8v4 (816 bytes per cell against int8's 1,056) gave a GPU expert cache only 1% larger (5,684 experts against 5,624) because the resident KV window
+is fixed at 32,768 cells, and expert-cache hit rates matched (85% at 31k, 90% at 129k and 227k). Saving KV space does not speed this model up; int8 stays.
+
 ## Tuning sweeps (2026-11-04)
 
 One run per row, warm decode, this box (12 logical CPUs), production stopped during the runs. Differences under about 0.5 tok/s are noise.
