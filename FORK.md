@@ -183,6 +183,23 @@ variant), Kolibri-1 (78B total, 3.46B active, so smaller than this range), and g
 about 63 GB in its native MXFP4 form, over the arena). A web search found no other recent model of this size with a
 confirmed GGUF, so check Hugging Face directly before downloading anything.
 
+## Tuning sweeps (2026-11-04)
+
+One run per row, warm decode, this box (12 logical CPUs), production stopped during the runs. Differences under about 0.5 tok/s are noise.
+
+| Model | Setup | Decode tok/s |
+|---|---|---|
+| Bolt | base / DFlash depth 3 / + pinned / + 8 threads / + prefetch 8 | 17.6-18.3 / 21.4-24.0 / 22.3-23.2 / 23.8-25.5 / 25.9-26.1 |
+| Super-VL 120B | prefetch 4 / 8 / 8 + 300 MiB reserve / 12 / 8 + 8 threads | 4.8-5.1 / 5.5-5.9 / 5.7-6.0 / 6.2-6.6 / 6.1-6.5 |
+| Ornith 122B | base / q8 KV, no MTP block / + 8 threads | 3.2-3.5 / 4.1-4.2 / 7.8-8.4 |
+| Ornith 122B, 120 tokens | 32k ctx / 16k / 8k (8 threads, q8 KV) | 8.5 / 9.1 / 8.9 |
+| Ornith 122B | 16k with fixed slots (no rebalancing) | 7.9 (rebalancing is worth about +15%) |
+| Ornith 122B | 16k with 6 / 10 / 12 threads | 8.6 / 6.1 / 3.8 (more than 8 threads hurts on 12 logical CPUs) |
+| Ornith 122B | 16k, prefill chunk 256 | 9.6 (one run, not repeated) |
+
+Ornith went from about 3.3 to about 9 tok/s: mostly 8 threads, then the packed q8 cache, no MTP block and a 16k context. Quality at 16k
+was not checked. Ornith's 1024-token prefill chunk gave no gain.
+
 ## Work in progress: Bolt, Super-VL, Ornith (strata-nh and q36 paths)
 
 Unfinished. None of these is a production model. Numbers are warm decode in tok/s on this card.
@@ -195,7 +212,7 @@ Unfinished. None of these is a production model. Numbers are warm decode in tok/
 | Bolt 24GB QAT with DFlash | draft depth 2 / 3 / 4 | 18.0-19.3 / 17.0-19.1 / 17.6-18.8 | the default depth ran at 6.3-6.5, worse than the no-DFlash 14.5-15.3; depth 3 is the keeper |
 | Bolt 24GB QAT, native NVFP4 + q4_0 KV | 262k, prefetch 4 | 25.50 | from the research roofline table (section 12 of the Strata notes); not re-run in this fork |
 | Super-VL 120B UD-IQ2_XXS | 62 slots, prefetch 4 / 61 slots, prefetch 8 | 4.12 / 5.10 | 41.29 GiB expert arena does not fit; 12% of experts resident |
-| Ornith 1.5 122B UD-IQ3_XXS (Strata q36) | 5 slots/layer, 6 workers | 6.4 | llama.cpp `-ncmoe 40` reaches 6.17. A separate 32-token bench (`ornith-bench-runs`) read 3.2-3.5; MTP depth 3 accepted 33% of drafts and ran at 2.6 |
+| Ornith 1.5 122B UD-IQ3_XXS (Strata q36) | 5 slots/layer, 6 workers (earlier run; see the sweeps above for ~9 with 8 threads, q8 KV, 16k) | 6.4 | llama.cpp `-ncmoe 40` reaches 6.17. A separate 32-token bench (`ornith-bench-runs`) read 3.2-3.5; MTP depth 3 accepted 33% of drafts and ran at 2.6 |
 
 Why Flash-Next decodes 2-5x faster than these: its experts are small (1.44-1.75 MB), 24-30% of them fit in VRAM and
 the profile-seeded cache hits 78-95%, and MTP amortises the dense weights. Bolt is dense-heavy (6.4 GB read per token),
