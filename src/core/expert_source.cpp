@@ -4862,6 +4862,33 @@ int tail_skip_rank() {
 }
 void set_tail_skip_rank(int r) { g_tail_skip_rank.store(r > 0 && r < 10 ? r : 0, std::memory_order_relaxed); }
 
+float skip_thr() {
+    static const float v = [] { const char* e = std::getenv("STRATA_SKIP_THR"); return e != nullptr ? std::max(0.0f, (float) std::atof(e)) : 0.0f; }();
+    return v;
+}
+bool skip_renorm() {
+    static const bool v = [] { const char* e = std::getenv("STRATA_SKIP_RENORM"); return e != nullptr && std::atoi(e) != 0; }();
+    return v && skip_thr() > 0.0f;
+}
+static bool skip_hist_on() {
+    static const bool v = [] { const char* e = std::getenv("STRATA_SKIP_HIST"); return e != nullptr && std::atoi(e) != 0; }();
+    return v;
+}
+bool skip_wants_weights() { return skip_thr() > 0.0f || skip_hist_on(); }
+namespace { thread_local const float* t_win_w = nullptr; thread_local float* t_win_w2 = nullptr; }
+void set_window_weights(const float* w, float* w2) { t_win_w = w; t_win_w2 = w2; }
+double skip_hist_quantile(const ExpertDispatch& d, double q) {
+    int64_t tot = 0;
+    for (int64_t c : d.skip_hist) tot += c;
+    if (tot == 0) return -1.0;
+    int64_t acc = 0;
+    for (int b = 0; b < 41; ++b) {
+        acc += d.skip_hist[b];
+        if ((double) acc >= q * (double) tot) return 0.005 * (b + 1);   // the bin's upper edge (the last bin is >= 0.2)
+    }
+    return 0.205;
+}
+
 void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32_t* ids, int64_t n_tok, int64_t k,
                                 float* out, strata::kernels::cpu::NativeArithmetic arithmetic) {
     using namespace strata::kernels::cpu;
@@ -4914,7 +4941,13 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
     // ---- plan v0.3 P6: the GPU's share, decided and published FIRST so the GPU starts while the CPU works.
     // Distinct experts in routing order; resident ones and the last pcie_num/256 of the missed ones go to the GPU.
     const int64_t n = n_tok * k;
-    int32_t kind[kMaxWindowEntries];       // per entry: -1 CPU, 0 VRAM, 1 PCIe
+    int32_t kind[kMaxWindowEntries];       // per entry: -1 CPU, 0 VRAM, 1 PCIe, -2 tail-skipped, -3 STRATA_SKIP_THR-skipped
+    // STRATA_SKIP_THR: the routing weights of this window (the verifier's host copy; null: not published, no skipping)
+    const float* rw = t_win_w;
+    float* rw2 = t_win_w2;
+    t_win_w = nullptr; t_win_w2 = nullptr;
+    const float thr = skip_thr();
+    if (rw != nullptr && rw2 != nullptr) std::memcpy(rw2, rw, (size_t) n * sizeof(float));   // the combine's weights: as routed
     if (d.plan != nullptr && n <= kMaxWindowEntries && n <= d.plan->cap) {
         int64_t distinct[kMaxWindowEntries], first_of[kMaxWindowEntries];
         int nd = 0, nmiss = 0;
@@ -4961,6 +4994,23 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
                 ++d.tail_experts;
             }
         }
+        // STRATA_SKIP_THR=w: a missed expert whose routing weight is below w at EVERY entry of the window is neither copied
+        // nor computed (zero row; the others keep their weights unless STRATA_SKIP_RENORM).  A resident expert never is.
+        bool skip_w[kMaxWindowEntries];
+        for (int q = 0; q < nd; ++q) skip_w[q] = false;
+        if (rw != nullptr && thr > 0.0f && d.peer == nullptr && d.remote_count == 0) {
+            for (int q = 0; q < nd; ++q) {
+                const int32_t e = ids[distinct[q]];
+                if (skip_d[q] || e < 0 || e >= d.n_expert || d.host_res[(size_t) d.layers * (size_t) d.n_expert + (size_t) e] >= 0) continue;
+                bool all_low = true;
+                for (int64_t i = 0; i < n && all_low; ++i)
+                    if (first_of[i] == distinct[q] && rw[i] >= thr) all_low = false;
+                if (!all_low) continue;
+                skip_w[q] = true;
+                --nmiss;
+                ++d.skip_experts;
+            }
+        }
         // STRATA_PCIE_BALANCE (opt-in, #1548): the count comes from the measured CPU and GPU costs instead of the share
         const bool pcie_ok = (d.pcie_num > 0 || d.pcie_model.on) && d.src->pcie_layer(d.layers);
         int m = pcie_ok ? d.pcie_model.pick(nmiss, (nmiss * d.pcie_num) >> 8) : 0;
@@ -4978,9 +5028,9 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
             const int32_t e = ids[i0];
             int kd = -1;
             unsigned long long ptr = 0;
-            if (skip_d[q]) {                       // STRATA_ROUTE_TAIL_SKIP: neither copied nor computed
+            if (skip_d[q] || skip_w[q]) {          // STRATA_ROUTE_TAIL_SKIP / STRATA_SKIP_THR: neither copied nor computed
                 for (int64_t i = i0; i < n; ++i)
-                    if (first_of[i] == i0) kind[i] = -2;
+                    if (first_of[i] == i0) kind[i] = skip_d[q] ? -2 : -3;
                 continue;
             }
             if (e >= 0 && e < d.n_expert) {
@@ -5052,6 +5102,26 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
             kind[i] = (e >= 0 && e < d.n_expert && d.host_res != nullptr &&
                        d.host_res[(size_t) d.layers * (size_t) d.n_expert + (size_t) e] >= 0) ? 0
                     : (e >= 0 && e < d.n_expert && d.peer != nullptr && d.peer->has(d.layers, e)) ? 2 : -1;
+        }
+    }
+    if (rw != nullptr && (thr > 0.0f || skip_hist_on())) {
+        // STRATA_SKIP_THR, entry level: a CPU-side entry (a missed expert some other token of the window routes higher, or
+        // any CPU entry the distinct-level pass above did not drop) below the threshold is not computed.  Entries the GPU
+        // holds (kind 0 VRAM, 1 PCIe, 2 peer/helper) are never touched.
+        for (int64_t i = 0; i < n; ++i) {
+            if ((kind[i] != -1 && kind[i] != -3) || ids[i] < 0 || ids[i] >= d.n_expert) continue;   // -3: dropped above, still CPU-side
+            ++d.skip_total;
+            ++d.skip_hist[std::min(40, (int) (rw[i] / 0.005f))];
+            if (kind[i] == -1 && thr > 0.0f && d.peer == nullptr && d.remote_count == 0 && rw[i] < thr) kind[i] = -3;
+            if (kind[i] == -3) ++d.skip_n;
+        }
+        if (rw2 != nullptr) {   // STRATA_SKIP_RENORM: each token's kept weights scaled back to the sum the router gave it
+            for (int64_t t = 0; t < n_tok; ++t) {
+                float all = 0.f, kept = 0.f;
+                for (int64_t j = 0; j < k; ++j) { const int64_t i = t * k + j; all += rw[i]; if (kind[i] != -3) kept += rw[i]; }
+                const float f = kept > 0.f ? all / kept : 1.f;
+                for (int64_t j = 0; j < k; ++j) { const int64_t i = t * k + j; rw2[i] = kind[i] == -3 ? 0.f : rw[i] * f; }
+            }
         }
     }
     if (d.peer != nullptr) {                 // multi-GPU: start the second GPU's share before the CPU's own work
@@ -5160,9 +5230,9 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
                 d.fail_expert = e;
                 return;
             }
-            if (kind[i] == -2) {            // STRATA_ROUTE_TAIL_SKIP: a skipped tail expert contributes zero
+            if (kind[i] == -2 || kind[i] == -3) {   // STRATA_ROUTE_TAIL_SKIP / STRATA_SKIP_THR: a skipped expert contributes zero
                 std::memset(row, 0, (size_t) H * sizeof(float));
-                ++d.tail_skipped;
+                if (kind[i] == -2) ++d.tail_skipped;
                 continue;
             }
             if (kind[i] >= 0) {             // CUDA0, PCIe, or a remote/peer result staged into this row below

@@ -19062,6 +19062,18 @@ int main(int argc, char** argv) {
             if (drive.d.tail_experts > 0)   // STRATA_ROUTE_TAIL_SKIP, cumulative
                 std::fprintf(stderr, "strata serve: route tail skip: %lld missed experts skipped (%lld entries) since the "
                                      "start\n", (long long) drive.d.tail_experts, (long long) drive.d.tail_skipped);
+            if (drive.d.skip_total > 0) {   // STRATA_SKIP_THR / STRATA_SKIP_HIST, cumulative
+                std::fprintf(stderr, "strata serve: expert skipping (weight < %.3f%s): %lld of %lld CPU-side entries skipped (%.1f%%), "
+                                     "%lld experts dropped for the whole window\n", strata::core::skip_thr(),
+                             strata::core::skip_renorm() ? ", renormalised" : "", (long long) drive.d.skip_n,
+                             (long long) drive.d.skip_total, 100.0 * (double) drive.d.skip_n / (double) drive.d.skip_total,
+                             (long long) drive.d.skip_experts);
+                if (std::getenv("STRATA_SKIP_HIST") != nullptr)
+                    std::fprintf(stderr, "strata serve: CPU-side entry routing weight quantiles: p10 %.3f p25 %.3f p50 %.3f p75 %.3f p90 %.3f\n",
+                                 strata::core::skip_hist_quantile(drive.d, 0.10), strata::core::skip_hist_quantile(drive.d, 0.25),
+                                 strata::core::skip_hist_quantile(drive.d, 0.50), strata::core::skip_hist_quantile(drive.d, 0.75),
+                                 strata::core::skip_hist_quantile(drive.d, 0.90));
+            }
             // the resident RAM mode, cumulative: experts read from experts.bin since the copy was made (what the plain
             // mmap mode reads through the OS file cache, from the SSD when the RAM could not keep it)
             if (src.complement_ready())

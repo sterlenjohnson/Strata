@@ -684,6 +684,8 @@ private:
     float* h_x_ = nullptr;       float* m_x_ = nullptr;         // doorbell payload: T * n_embd
     int32_t* h_ids_ = nullptr;   int32_t* m_ids_ = nullptr;     // T * k
     float* h_w_ = nullptr;       float* m_w_ = nullptr;         // T * k
+    float* h_w2_ = nullptr;      float* m_w2_ = nullptr;        // STRATA_SKIP_RENORM: the weights the combine uses (host writes), T * k
+    float* w2_ = nullptr;                                       // ... and their device copy
     uint32_t* h_seq_ = nullptr;  uint32_t* m_seq_ = nullptr;
     uint32_t* h_flag_ = nullptr; uint32_t* m_flag_ = nullptr;
     uint32_t* h_flagA_ = nullptr; uint32_t* m_flagA_ = nullptr;  // the GPU plan is in place

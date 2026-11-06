@@ -11,6 +11,7 @@
 #include "strata/kernels/gfx_arch.hpp"
 #include "strata/core/verify.hpp"
 #include "strata/core/window_evict.hpp"
+#include "strata/core/expert_source.hpp"   // STRATA_SKIP_THR: skip_thr(), set_window_weights()
 #include "strata/core/expert_nibble.hpp"
 #include "strata/core/pin_budget.hpp"
 #if defined(STRATA_VERIFY_HGL)
@@ -760,7 +761,7 @@ Verifier::~Verifier() {
         if (e) cudaEventDestroy(e);
     if (arena_) cudaFree(arena_);
     if (hcount_d_) cudaFree(hcount_d_);
-    void* hosts[] = {h_tok_, h_step_, h_pos_, h_commit_, h_ple_, h_out_, h_x_, h_ids_, h_w_, h_seq_, h_flag_, h_ymiss_,
+    void* hosts[] = {h_tok_, h_step_, h_pos_, h_commit_, h_ple_, h_out_, h_x_, h_ids_, h_w_, h_w2_, h_seq_, h_flag_, h_ymiss_,
                      h_flagA_, h_plan_, h_flagB_, h_plan_err_, h_nf_, herr_h_, hdrop_h_, h_bal_};
     for (void* h : hosts)
         if (h) cudaFreeHost(h);
@@ -974,6 +975,7 @@ bool Verifier::init(const WeightTable& wt, const ModelGeometry& g, SessionState&
               mapped(64, (void**) &h_flagB_, (void**) &m_flagB_) &&
               mapped(64, (void**) &h_plan_err_, (void**) &m_plan_err_) &&
               mapped(T * K * N * 4, (void**) &h_ymiss_, (void**) &m_ymiss_);
+    if (ok && strata::core::skip_renorm()) ok = mapped(((size_t) T * K + 3) / 4 * 4 * 4, (void**) &h_w2_, (void**) &m_w2_);   // STRATA_SKIP_RENORM
     if (!ok) { err = "verify: mapped staging allocation failed " + strata::core::pin_exhausted_hint(); return false; }
     // DFlash2 taps: set_taps (the drafter) or STRATA_TAP_FILE (the research dump); off, and nothing is allocated or captured, otherwise
     const char* tap_path = std::getenv("STRATA_TAP_FILE");
@@ -1086,6 +1088,7 @@ bool Verifier::init(const WeightTable& wt, const ModelGeometry& g, SessionState&
         attn_scratch_ = b.take<float>(T * (uint64_t) attn_scratch_floats_);
         tail_snap_ = b.take<float>(nQ * TS);
         logits_ = b.take<float>(T * (uint64_t) g.n_expert); w_ = b.take<float>(T * K); ids_ = b.take<int32_t>(T * K);
+        if (strata::core::skip_renorm()) w2_ = b.take<float>(((uint64_t) T * K + 3) / 4 * 4);   // STRATA_SKIP_RENORM
         shared_ = b.take<float>(T * N); parts_ = b.take<float>(T * K * N); hit_out_ = b.take<float>(T * K * N);
         hit_slot_ = b.take<int32_t>(T * K); hit_dst_ = b.take<int32_t>(T * K); hit_count_ = b.take<int32_t>(4);
         plan_ = b.take<int32_t>(2 * ((uint64_t) plan_i32_ + 16));
@@ -2263,8 +2266,11 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                                  m_ids_ + tb * K, m_w_ + tb * K, m_seq_, cs);
             else {
                 const int32_t* layer_res = hits_.d_res != nullptr ? (hits_.d_res + l * g.n_expert) : nullptr;
+                // STRATA_SKIP_THR: the routing weights ride along with the ids (k floats a token) so the pool can drop low ones
+                const bool pub_w = strata::core::skip_wants_weights();
                 doorbell_publish_res(xm, ids_ + tb * K, layer_res, (int) g.n_expert, (int64_t) n * N, (int64_t) n * K,
-                                     m_x_ + tb * N, m_ids_ + tb * K, m_seq_, cs);
+                                     m_x_ + tb * N, m_ids_ + tb * K, m_seq_, cs, pub_w ? w_ + tb * K : nullptr,
+                                     pub_w ? m_w_ + tb * K : nullptr);
             }
             if (sh_fork_late) {
                 note_prio_fork(cs);
@@ -2452,6 +2458,11 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
         if (sh_stream_on() && !prof_on_ && sh_cs_ != nullptr && ev_fork_ != nullptr && ev_join_ != nullptr) {
             cudaStreamWaitEvent(cs, ev_join_, 0);
         }
+        // STRATA_SKIP_RENORM: the pool wrote this window's weights (kept ones rescaled) to mapped memory; they are copied
+        // after the CPU rows' wait above (stream order) and replace the router's in the combine
+        const bool renorm_w = w2_ != nullptr && !ar_on() && !device_plan_ && !sg_gated_[grp] && !remote_opt_;
+        if (renorm_w) copy_from_mapped(w2_, m_w2_, (long long) (((size_t) max_t_ * K + 3) / 4 * 4), cs);
+        float* wc = renorm_w ? w2_ : w_;
         strata::dispatch::notef("combine layer: kind %ld (0 per-token, 1 multi, 2 multi+hits, 3 multi+hits gated)", (long) (sg_gated_[grp] ? 3 : hits_in_combine ? 2 : (dec_batch && n > 1 && native_moe_combine_enabled()) ? 1 : 0));
         if (sg_gated_[grp]) {   // STRATA_LFUSE: the shared expert's gate was not applied: the combine applies it (all rows are hits)
             try {
@@ -2460,18 +2471,18 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
         } else
         if (hits_in_combine) {
             try {
-                native_moe_combine_multi_hits_added(parts_ + (size_t) tb * K * N, hit_out, p_dst, p_counts + 1, w_ + tb * K,
+                native_moe_combine_multi_hits_added(parts_ + (size_t) tb * K * N, hit_out, p_dst, p_counts + 1, wc + tb * K,
                                                     shared_ + tb * N, bo_ + tb * N, N, K, n, cs);
             } catch (const std::exception& e) { err = "verify combine: " + std::string(e.what()); return false; }
         } else
         if (dec_batch && n > 1 && native_moe_combine_enabled()) {   // one launch for the window's rows
             try {
-                native_moe_combine_multi(parts_ + (size_t) tb * K * N, w_ + tb * K, shared_ + tb * N, bo_ + tb * N, N, K, n, cs);
+                native_moe_combine_multi(parts_ + (size_t) tb * K * N, wc + tb * K, shared_ + tb * N, bo_ + tb * N, N, K, n, cs);
             } catch (const std::exception& e) { err = "verify combine: " + std::string(e.what()); return false; }
         } else
         for (int t = tb; t < te; ++t) {
             MoEBuffers mb = ss.moe;
-            mb.weights = w_ + t * K; mb.shared = shared_ + t * N;
+            mb.weights = wc + t * K; mb.shared = shared_ + t * N;
             if (!moe_combine_parts(g, l, K, mb, parts_ + (size_t) t * K * N, bo_ + t * N, cs, err)) return false;
         }
         if (remote_opt_) remote_opt_->combine(bo_ + tb * N, y_dummy_ + tb * N, tb, n,
@@ -3481,6 +3492,8 @@ bool Verifier::run(int T, const int32_t* tokens, int64_t pos0, PoolMultiFn pool,
         const int tb = gtb[grp], n = gte[grp] - gtb[grp];
         progress_at("verify window: the CPU experts of layer", l);
         if (remote_opt_) remote_opt_->begin(h_w_ + (size_t) tb * ss.k, tb, n);
+        strata::core::set_window_weights(strata::core::skip_wants_weights() ? h_w_ + (size_t) tb * ss.k : nullptr,
+                                         h_w2_ != nullptr ? h_w2_ + (size_t) tb * ss.k : nullptr);   // STRATA_SKIP_THR
         if (pool != nullptr)
             pool(user, h_x_ + (size_t) tb * g.n_embd, h_ids_ + (size_t) tb * ss.k, n, ss.k,
                  h_ymiss_ + (size_t) tb * ss.k * g.n_embd, l);
@@ -4748,6 +4761,7 @@ bool Verifier::run_slot_rows(const int* rows, int S, const int32_t* tokens, cons
         // The recorded graph consumes the helper mask and weighted sum just as
         // the solo graph does. Reset both and supply this layer's routing weights.
         if (remote_opt_) remote_opt_->begin(h_w_, 0, S);
+        strata::core::set_window_weights(strata::core::skip_wants_weights() ? h_w_ : nullptr, h_w2_);   // STRATA_SKIP_THR
         if (pool != nullptr) pool(user, h_x_, h_ids_, S, ss_->k, h_ymiss_, l);
         if (remote_opt_) remote_opt_->end();
         progress_tick();
@@ -4963,6 +4977,7 @@ int Verifier::batch_serve(PoolMultiFn pool, void* user) {
         cur_layer_ = want - 1;
         set_plan_slot(0);
         if (remote_opt_) remote_opt_->begin(h_w_, 0, S);
+        strata::core::set_window_weights(strata::core::skip_wants_weights() ? h_w_ : nullptr, h_w2_);   // STRATA_SKIP_THR
         if (pool != nullptr) pool(user, h_x_, h_ids_, S, ss_->k, h_ymiss_, lb_ + k);
         if (remote_opt_) remote_opt_->end();
         progress_tick();
@@ -5314,6 +5329,8 @@ int Verifier::service(PoolMultiFn pool, void* user, std::string& err) {
         set_plan_slot(grp);
         const int tb = gtb[grp], n = gte[grp] - gtb[grp];
         progress_at("verify window (pipelined): the CPU experts of layer", l);
+        strata::core::set_window_weights(strata::core::skip_wants_weights() ? h_w_ + (size_t) tb * ss.k : nullptr,
+                                         h_w2_ != nullptr ? h_w2_ + (size_t) tb * ss.k : nullptr);   // STRATA_SKIP_THR
         if (pool != nullptr)
             pool(user, h_x_ + (size_t) tb * g.n_embd, h_ids_ + (size_t) tb * ss.k, n, ss.k,
                  h_ymiss_ + (size_t) tb * ss.k * g.n_embd, l);

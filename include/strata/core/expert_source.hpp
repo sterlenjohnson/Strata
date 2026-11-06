@@ -622,6 +622,12 @@ struct ExpertDispatch {
     /// and the distinct experts behind them (neither copied nor computed)
     int64_t tail_skipped = 0;
     int64_t tail_experts = 0;
+    /// STRATA_SKIP_THR=w: CPU-side entries (missed experts, no VRAM slot) whose routing weight is below w are not computed
+    /// (row zero).  skip_total = CPU-side entries seen with a weight, skip_n = those dropped, skip_experts = distinct
+    /// experts dropped for the whole window (neither copied nor computed); skip_hist = weights of CPU-side entries, 0.005 bins
+    /// (STRATA_SKIP_HIST=1 prints the quantiles).
+    int64_t skip_total = 0, skip_n = 0, skip_experts = 0;
+    int64_t skip_hist[41] = {};
     double ms_plan = 0, ms_actq = 0, ms_jobs = 0, ms_run = 0;   ///< verify-window dispatch sections
     /// 149-cold STRATA_COLD_OVERLAP: 0 off (the CPU starts once every blob of the layer is read), 1 the blobs that
     /// must be read are read in the background while the pool computes the ready experts, each landed one computed
@@ -680,6 +686,18 @@ void expert_pool_dispatch(void* user, const float* x_f, const int32_t* ids, cons
 /// STRATA_ROUTE_TAIL_SKIP rank (0: off).  Unset in the environment: 0 until the serve start-up sets the default.
 int tail_skip_rank();
 void set_tail_skip_rank(int r);
+
+/// STRATA_SKIP_THR=w (default 0 = off, bit-exact): in a verify window, a missed expert entry whose routing weight is below w
+/// is skipped (zero row); STRATA_SKIP_RENORM=1 scales the kept weights of the token back to the original sum;
+/// STRATA_SKIP_HIST=1 records the weight histogram of the CPU-side entries.  Read once.
+float skip_thr();
+bool skip_renorm();
+bool skip_wants_weights();   ///< the doorbell must publish the routing weights (thr > 0 or the histogram)
+/// The verify window's host copy of the routing weights for the NEXT expert_pool_dispatch_multi call on this thread
+/// (same layout as its ids; `w2`, if not null, receives the weights the combine must use).  Consumed by that call.
+void set_window_weights(const float* w, float* w2);
+/// The weight-histogram quantile (0..1) of the CPU-side entries; -1 without data.
+double skip_hist_quantile(const ExpertDispatch& d, double q);
 
 void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32_t* ids, int64_t n_tok, int64_t k,
                                 float* out, strata::kernels::cpu::NativeArithmetic arithmetic = strata::kernels::cpu::NativeArithmetic::Default);
