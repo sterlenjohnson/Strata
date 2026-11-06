@@ -29,6 +29,11 @@ Decode tok/s on this box (RTX 4060 Ti 16 GB at a 120 W limit, 6-core Zen 2 VM), 
 | Qwen3.6-35B-A3B Q4_K_XL | not recorded | about 53-59 with MTP on short prompts; 40 without MTP at 2k context | about 1,170-1,340 (2k-32k tokens) | hybrid CPU/GPU experts, q8 KV, 8 threads; DFlash2 drafter runs here too, see the file | [qwen3.6-35b-a3b.md](docs/models/qwen3.6-35b-a3b.md) |
 | Flint 40B Q8_0 (llama.cpp) | not run | about 32 | 228 at `-ub 512`, **691 at `-ub 2048`** (pp2048) | `-ncmoe 33 -t 6 -ub 2048` | [flint-40b.md](docs/models/flint-40b.md) |
 
+**How to read this table.** These are peak figures at short context (about 2k tokens) with the best flags found, from short generations (64-300 tokens). They are not a coding-session workload: apart from Flash-Next,
+every model loses 30-80% of its decode speed by 64k-128k tokens of context (see [Performance over context](#performance-over-context-2026-11-06) below). The Bolt and Ornith "now" figures use expert skipping, which costs a measured
+perplexity change (Ornith +3% prose / +2% docs at 0.10, about 0 or better on Python and TypeScript; Bolt about 0 at REL 0.5; details in [expert-skipping.md](docs/expert-skipping.md)). "Start" and "now" were not always measured with the same prompts
+or engine build, Flash-Next's 41 swings between 37 and 49 with the prompt, and the prefill column mixes server long-prompt runs, 2k-4k benchmarks and a llama.cpp benchmark.
+
 Prefill is measured as the benchmark's 2,048-token prompt unless noted (Flash-Next: long prompts through the server). Ornith's speed depends on the chunk size: each prompt chunk streams all 38.9 GiB of experts over
 PCIe once (about 3.3 s at 13 GB/s), so a 512-token test reads 150 tok/s and a 2,048-token chunk about 620; larger chunks give more but leave fewer experts resident for decode. Skipping experts does not change prefill
 (prompt chunks above the hybrid row limit take the streaming path). The 3,072-token prompt is slower on every model (Bolt about 797, Super-VL about 290, Ornith about 470) for a reason not found.
