@@ -24,3 +24,21 @@ This model's 22-of-512 routing carries many small weights, which is why it toler
 | Model | Setup | Decode | Notes |
 |---|---|---|---|
 | Super-VL 120B UD-IQ2_XXS | 62 slots, prefetch 4 / 61 slots, prefetch 8 | 4.12 / 5.10 | 41.29 GiB expert arena does not fit; 12% of experts resident |
+
+## Performance over context (2026-11-06)
+
+STRATA_NH_SKIP_REL=0.5, q8_0 KV, 8 threads, prefetch 16, 131k context. Two passes per point, mean shown. The 8k point failed with a cuBLAS error (status 14) and was queued for a rerun.
+
+| Prompt tokens | Decode tok/s | Prefill tok/s |
+|---|---|---|
+| 2,048 | 7.6 | 350 |
+| 16,384 | 7.8 | 346 |
+| 32,768 | 7.8 | 328 |
+| 65,536 | 7.8 | 285 |
+| 131,000 | 6.4 | 153 |
+
+Decode barely moves to 64k because the model is bound by the CPU and PCIe, not by attention; it dips at 131k (5.7 and 7.2 in the two passes).
+
+![decode](../img/context-decode.svg)
+
+![prefill](../img/context-prefill.svg)

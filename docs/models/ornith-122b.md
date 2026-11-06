@@ -124,3 +124,23 @@ and decode was 1.9x faster at 0.10 and 3.5x at 0.15 on the long generations.
 | Model | Setup | Decode | Notes |
 |---|---|---|---|
 | Ornith 1.5 122B UD-IQ3_XXS (Strata q36) | 5 slots/layer, 6 workers (earlier run; see the sweeps above for ~9 with 8 threads, q8 KV, 16k) | 6.4 | llama.cpp `-ncmoe 40` reaches 6.17. A separate 32-token bench (`ornith-bench-runs`) read 3.2-3.5; MTP depth 3 accepted 33% of drafts and ran at 2.6 |
+
+## Performance over context (2026-11-06)
+
+--pcie-frac 0.5, STRATA_Q36_SKIP_THR=0.10, 7 threads, q8 KV, chunk 2048, 131k context; 64 generated tokens per point, one run each, real repository text, each prompt prefilled from a fresh state.
+A 4,096-token chunk did not fit at a 131k context (2,524 MiB needed, 2,331 free); a rerun at 64k was queued.
+
+| Prompt tokens | Decode tok/s | Prefill tok/s |
+|---|---|---|
+| 2,048 | 13.8 | 619 |
+| 8,192 | 11.8 | 632 |
+| 16,384 | 10.8 | 632 |
+| 32,768 | 9.5 | 592 |
+| 65,536 | 6.5 | 395 |
+| 131,000 | 4.3 | 177 |
+
+Usable to about 32k (9.5 tok/s); decode halves again by 64k and prefill falls from about 620 to 177 tok/s at 131k.
+
+![decode](../img/context-decode.svg)
+
+![prefill](../img/context-prefill.svg)

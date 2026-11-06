@@ -76,3 +76,20 @@ model's own tokenizer, each prefilled from a fresh state, so prefill is the aver
 Unlike Flash-Next, this model slows down with context. Reserving a 262k KV cache leaves 47 of 256 experts per layer in VRAM (3.4 GiB), against 89
 at a 32k setting, so the 2k point (40 tok/s) already reads below the 53-59 tok/s measured earlier at 32k with MTP. Prefill falls from 1,340 to 229
 tok/s as attention cost grows. For long contexts, a smaller `--max-context` than the model's limit keeps more experts resident.
+
+### Same sweep at a 64k setting
+
+`--max-context 65536` (the 64k prompt does not fit with 64 generated tokens). 83 of 256 experts per layer stay resident, against 47 at the 262k setting.
+
+| Prompt tokens | Decode tok/s | Prefill tok/s |
+|---|---|---|
+| 2,048 | 51.3 | 1,124 |
+| 8,192 | 41 | 1,324 |
+| 16,384 | 34.2 | 1,342 |
+| 32,768 | 31.1 | 1,307 |
+
+The short-context loss at 262k is the KV reservation; the slowdown beyond 32k remains at either setting (the 262k run reads 29.1 at 32k against 31.1 here).
+
+![decode](../img/context-decode.svg)
+
+![prefill](../img/context-prefill.svg)

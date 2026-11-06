@@ -37,6 +37,43 @@ The two large steps came from (1) sending part of the cache-missed experts over 
 (2) not computing cache-missed experts whose routing weight is small (new here: `STRATA_Q36_SKIP_THR`, `STRATA_NH_SKIP_REL`; quality measured as perplexity on forced text, see the expert-skipping section).
 Both trade a small, measured quality cost for speed on the CPU-bound models; Flash-Next does not need them.
 
+## Performance over context (2026-11-06)
+
+Decode and prefill against the number of prompt tokens already in context, one or two runs per point, real repository text. Settings per model are in the
+model files. Only Flash-Next holds its speed; the others lose decode as the prompt grows, Super-VL least. "-" = not measured (the 35B at a 64k setting stops at 32k, Ornith and Super-VL at 131k).
+
+![Decode speed over context](docs/img/context-decode.svg)
+
+![Prefill speed over context](docs/img/context-prefill.svg)
+
+Decode, tok/s (Flash-Next's 19k and 227k points sit under 16k and 256k):
+
+| Model | 2k | 8k | 16k | 32k | 64k | 128k | 256k |
+|---|---|---|---|---|---|---|---|
+| Flash-Next IQ3_XXS | 36.9 | 39.9 | 42.7 | 48.9 | 49.1 | 38.9 | 43.5 |
+| Qwen3.6-35B-A3B Q4_K_XL, 262k setting | 40.3 | 34.6 | 31.0 | 29.1 | 17.9 | 11.4 | 6.5 |
+| Qwen3.6-35B-A3B Q4_K_XL, 64k setting | 51.3 | 41.0 | 34.2 | 31.1 | - | - | - |
+| Ornith 122B IQ3_XXS | 13.8 | 11.8 | 10.8 | 9.5 | 6.5 | 4.3 | - |
+| Bolt 74B 24GB QAT | 40.9 | 35.8 | 35.6 | 31.5 | 25.5 | 20.2 | 9.7 |
+| Super-VL 120B IQ2_XXS | 7.6 | - | 7.8 | 7.8 | 7.8 | 6.4 | - |
+
+Prefill, tok/s (average over the whole prompt):
+
+| Model | 2k | 8k | 16k | 32k | 64k | 128k | 256k |
+|---|---|---|---|---|---|---|---|
+| Flash-Next IQ3_XXS | 383 | 982 | 998 | 1,175 | 1,298 | 1,270 | 1,224 |
+| Qwen3.6-35B-A3B Q4_K_XL, 262k setting | 1,168 | 1,337 | 1,344 | 1,306 | 947 | 539 | 229 |
+| Qwen3.6-35B-A3B Q4_K_XL, 64k setting | 1,124 | 1,324 | 1,342 | 1,307 | - | - | - |
+| Ornith 122B IQ3_XXS | 619 | 632 | 632 | 592 | 395 | 177 | - |
+| Bolt 74B 24GB QAT | 926 | 900 | 857 | 763 | 556 | 207 | 74 |
+| Super-VL 120B IQ2_XXS | 350 | - | 346 | 328 | 285 | 153 | - |
+
+Points with a caveat: Flash-Next's 2k prefill includes warm-up; Bolt's 131k decode is inflated by a repetition loop in the generated text and its 262k point is one pass;
+Ornith's chunk-4096 run and the Super-VL 8k point failed and were queued for a rerun; Flint (llama.cpp) failed at depth and the 35B IQ3_XXS needs a rebuilt engine and is queued.
+Per-model tables: [Flash-Next](docs/models/flash-next.md#performance-over-context-2026-11-06), [35B](docs/models/qwen3.6-35b-a3b.md#performance-over-context-2026-11-06),
+[Ornith](docs/models/ornith-122b.md#performance-over-context-2026-11-06), [Bolt](docs/models/bolt-74b.md#performance-over-context-2026-11-06),
+[Super-VL](docs/models/super-vl-120b.md#performance-over-context-2026-11-06). The data and the plot script are in `docs/bench/`.
+
 ## In-depth findings
 
 | Topic | File |

@@ -72,3 +72,38 @@ No gain: only 5-15% of lookups miss and the upstream rank-based tail skip (`STRA
 
 `--pcie-frac` 0.55 / 0.60 / 0.65 added to the production config (two runs each, three short prompts) read 38.7-42.8 against 37.7-43.4 for the plain config: no gain. The weight-based skip port (above) and
 every earlier flag change also leave it at about 41 tok/s. The production configuration is unchanged.
+
+## Performance over context (2026-11-06)
+
+Production server on :8090, prompts built from repository files, 200 generated tokens, temperature 0, one run each. production config, MTP spec 4, int8 KV, kv-resident 32768, 262k context.
+The 2k prefill point (383 tok/s) includes warm-up and is not representative.
+
+| Prompt tokens | Decode tok/s | Prefill tok/s |
+|---|---|---|
+| 2,175 | 36.9 | 383 |
+| 8,978 | 39.9 | 982 |
+| 19,464 | 42.7 | 998 |
+| 32,939 | 48.9 | 1,175 |
+| 64,622 | 49.1 | 1,298 |
+| 131,113 | 38.9 | 1,270 |
+| 226,520 | 43.5 | 1,224 |
+
+Decode does not fall with context (it moves with how predictable each prompt is, 62-78% of drafts accepted); prefill stays at 1,000-1,300.
+
+### `--kv-resident` sweep
+
+Same method, prompts of about 32k, 128k and 225k tokens (decode tok/s / prefill tok/s). The 32,768 row is the earlier run (different session); a matched rerun of 8,192, 32,768 and 65,536 was queued.
+
+| `--kv-resident` | 32k | 128k | 225k |
+|---|---|---|---|
+| 16,384 | 38.2 / 1,037 | 47.1 / 1,229 | 47.0 / 1,215 |
+| 32,768 (production) | 39.8 / 1,273 | 46.3 / 1,223 | 48.0 / 1,202 |
+| 65,536 | 37.3 / 1,246 | 46.8 / 1,276 | 48.4 / 1,224 |
+| 131,072 | 35.0 / 1,054 | 39.8 / 1,216 | 43.3 / 1,202 |
+| 262,144 | 30.9 / 864 | 34.8 / 978 | 32.0 / 951 |
+
+16k, 32k and 65k are within noise (about 3-5 tok/s between runs). 131k and above take VRAM from the expert cache and lose speed.
+
+![decode](../img/context-decode.svg)
+
+![prefill](../img/context-prefill.svg)

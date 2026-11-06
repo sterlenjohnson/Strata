@@ -50,3 +50,25 @@ against 28.5 base: no speed gain (noise is about 2 tok/s). Bolt is bound by its 
 | Bolt 24GB QAT, real-prompt profile | 300 MiB reserve, 90 slots/layer | 16.10 | 42.4% resident; 18.4% above the IQ3 baseline, a mix of three changes |
 | Bolt 24GB QAT with DFlash | draft depth 2 / 3 / 4 | 18.0-19.3 / 17.0-19.1 / 17.6-18.8 | the default depth ran at 6.3-6.5, worse than the no-DFlash 14.5-15.3; depth 3 is the keeper |
 | Bolt 24GB QAT, native NVFP4 + q4_0 KV | 262k, prefetch 4 | 25.50 | from the research roofline table (section 12 of the Strata notes); not re-run in this fork |
+
+## Performance over context (2026-11-06)
+
+native NVFP4, STRATA_NH_SKIP_REL=0.5, DFlash depth 3, q8_0 KV, 8 threads, prefetch 12, 262k context. Two passes per point (one at 262k; it hit the time limit), mean shown, real repository text.
+The 131k decode is probably flattering: the model degenerated into repeating one token there, which inflates draft acceptance.
+The UD-Q3_K_XL file was not run at length.
+
+| Prompt tokens | Decode tok/s | Prefill tok/s |
+|---|---|---|
+| 2,048 | 40.9 | 926 |
+| 8,192 | 35.8 | 900 |
+| 16,384 | 35.6 | 857 |
+| 32,768 | 31.5 | 763 |
+| 65,536 | 25.5 | 556 |
+| 131,000 | 20.2 | 207 |
+| 262,000 | 9.7 | 74 |
+
+Decode halves between 2k and 64k and falls to about a quarter by 262k; prefill collapses beyond 64k.
+
+![decode](../img/context-decode.svg)
+
+![prefill](../img/context-prefill.svg)

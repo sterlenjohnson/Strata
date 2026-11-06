@@ -7,3 +7,7 @@ into the scratchpad's `cu13/lib`). `llama-bench -ngl 99 -fa 1 -t 6 -ub 512 -p 51
 (`-ncmoe 28` does not fit: 18.8 GiB of experts on the 16 GB card; 32 and below were not tried). At `-ncmoe 36`: 4 / 5 / 6 / 7 / 8 threads give 30.8 / 30.5 / 30.8 / 30.2 / 28.5. Larger micro-batches
 help prefill a lot: pp2048 at `-ub` 1024 / 2048 reads 368 / 691 tok/s. `llama-server --n-cpu-moe 38 -c 8192` produced 200 tokens at about 29 tok/s. Use `-ncmoe 33 -t 6 -ub 2048`. Flint was only run for speed here
 (the file is a "Preview" base model; the quick completion test continued the prompt as plain text).
+
+## Performance over context
+
+Not measured yet. `llama-bench -d` at -ub 2048 and depths up to 64k failed to allocate its compute buffers; smaller-depth reruns were queued.
