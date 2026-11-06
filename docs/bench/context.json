@@ -245,24 +245,27 @@
    "name": "Flint 40B Q8_0 (llama.cpp)",
    "short": "Flint 40B Q8_0 (llama.cpp, pp512)",
    "color": "#555555",
-   "settings": "llama.cpp b11798, -ncmoe 36 -ub 512; prefill is a 512-token chunk at that depth",
+   "settings": "llama.cpp b11798, -ncmoe 36 -ub 512; prefill is a 512-token chunk at that depth; the 131k point used -ncmoe 38",
    "x": [
     8192,
     16384,
     32768,
-    65536
+    65536,
+    131072
    ],
    "decode": [
     29.7,
     28.6,
     28.1,
-    24.9
+    24.9,
+    20.7
    ],
    "prefill": [
     209,
     207,
     200,
-    188
+    188,
+    163
    ]
   }
  ]

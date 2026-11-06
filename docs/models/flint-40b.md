@@ -20,5 +20,6 @@ at that depth, not an average over a whole prompt, so it is not the same measure
 | 16,384 | 207 | 28.6 |
 | 32,768 | 200 | 28.1 |
 | 65,536 | 188 | 24.9 |
+| 131,072 | 163 | 20.7 |
 
-Decode holds close to 30 tok/s to 32k and loses about 15% by 64k. The 0 and 8k prefill points differ because the first run includes warm-up. The 131k depth was queued with `-ncmoe 38`.
+Decode holds close to 30 tok/s to 32k and loses about 15% by 64k. The 0 and 8k prefill points differ because the first run includes warm-up. The 131k point used `-ncmoe 38` (36 did not fit), so it is not strictly the same split; decode is about 70% of its 0-depth speed there.

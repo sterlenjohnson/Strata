@@ -71,11 +71,12 @@
 <circle cx="296.2" cy="171.4" r="3.6" fill="#a6761d"/>
 <circle cx="393.2" cy="186.0" r="3.6" fill="#a6761d"/>
 <circle cx="490.2" cy="214.4" r="3.6" fill="#a6761d"/>
-<polyline fill="none" stroke="#555555" stroke-width="2.2" points="296.2,299.7 393.2,300.0 490.2,301.0 587.2,302.7"/>
+<polyline fill="none" stroke="#555555" stroke-width="2.2" points="296.2,299.7 393.2,300.0 490.2,301.0 587.2,302.7 684.1,306.4"/>
 <circle cx="296.2" cy="299.7" r="3.6" fill="#555555"/>
 <circle cx="393.2" cy="300.0" r="3.6" fill="#555555"/>
 <circle cx="490.2" cy="301.0" r="3.6" fill="#555555"/>
 <circle cx="587.2" cy="302.7" r="3.6" fill="#555555"/>
+<circle cx="684.1" cy="306.4" r="3.6" fill="#555555"/>
 <line x1="62" x2="84" y1="384" y2="384" stroke="#1b9e77" stroke-width="2.5"/><circle cx="73" cy="384" r="3.6" fill="#1b9e77"/><text x="92" y="388" fill="#222">Flash-Next IQ3_XXS</text>
 <line x1="442" x2="464" y1="384" y2="384" stroke="#d95f02" stroke-width="2.5"/><circle cx="453" cy="384" r="3.6" fill="#d95f02"/><text x="472" y="388" fill="#222">Qwen3.6-35B-A3B Q4_K_XL, 262k setting</text>
 <line x1="62" x2="84" y1="404" y2="404" stroke="#e6ab02" stroke-width="2.5"/><circle cx="73" cy="404" r="3.6" fill="#e6ab02"/><text x="92" y="408" fill="#222">Qwen3.6-35B-A3B Q4_K_XL, 64k setting</text>
