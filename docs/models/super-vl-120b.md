@@ -27,11 +27,12 @@ This model's 22-of-512 routing carries many small weights, which is why it toler
 
 ## Performance over context (2026-11-06)
 
-STRATA_NH_SKIP_REL=0.5, q8_0 KV, 8 threads, prefetch 16, 131k context. Two passes per point, mean shown. The 8k point failed with a cuBLAS error (status 14) and was queued for a rerun.
+STRATA_NH_SKIP_REL=0.5, q8_0 KV, 8 threads, prefetch 16, 131k context. Two passes per point, mean shown. The first 8k attempt failed with a cuBLAS error (status 14); a rerun read 7.5 tok/s decode and 350 prefill.
 
 | Prompt tokens | Decode tok/s | Prefill tok/s |
 |---|---|---|
 | 2,048 | 7.6 | 350 |
+| 8,192 | 7.5 | 350 |
 | 16,384 | 7.8 | 346 |
 | 32,768 | 7.8 | 328 |
 | 65,536 | 7.8 | 285 |

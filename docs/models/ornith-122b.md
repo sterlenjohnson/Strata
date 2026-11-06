@@ -128,7 +128,7 @@ and decode was 1.9x faster at 0.10 and 3.5x at 0.15 on the long generations.
 ## Performance over context (2026-11-06)
 
 --pcie-frac 0.5, STRATA_Q36_SKIP_THR=0.10, 7 threads, q8 KV, chunk 2048, 131k context; 64 generated tokens per point, one run each, real repository text, each prompt prefilled from a fresh state.
-A 4,096-token chunk did not fit at a 131k context (2,524 MiB needed, 2,331 free); a rerun at 64k was queued.
+A 4,096-token chunk did not fit at a 131k context (2,524 MiB needed, 2,331 free), so it was rerun at a 65k setting (below).
 
 | Prompt tokens | Decode tok/s | Prefill tok/s |
 |---|---|---|
@@ -144,3 +144,14 @@ Usable to about 32k (9.5 tok/s); decode halves again by 64k and prefill falls fr
 ![decode](../img/context-decode.svg)
 
 ![prefill](../img/context-prefill.svg)
+
+### Chunk 4096 (65k context setting)
+
+| Prompt tokens | Decode tok/s | Prefill tok/s |
+|---|---|---|
+| 2,048 | 13.1 | 629 |
+| 8,192 | 11.5 | 1,094 |
+| 16,384 | 10.2 | 993 |
+| 32,768 | 8.7 | 797 |
+
+Against chunk 2048 on the same run (14.4 / 11.9 / 10.9 / 9.4 decode, 605 / 632 / 631 / 592 prefill): a 4,096-token chunk is 1.7x faster to prefill at 8k and 1.35x at 32k, and costs about 3-7% of decode. At 2k tokens it is the same, because the prompt is a single chunk.

@@ -1,29 +1,212 @@
 {
  "note": "Tokens in the prompt (x) against decode and prefill tok/s on the RTX 4060 Ti 16 GB box at a 120 W limit. null = not measured.",
  "series": [
-  {"name": "Flash-Next IQ3_XXS", "color": "#1b9e77", "settings": "production config, MTP spec 4, int8 KV, kv-resident 32768, 262k context",
-   "x": [2175, 8978, 19464, 32939, 64622, 131113, 226520],
-   "decode": [36.9, 39.9, 42.7, 48.9, 49.1, 38.9, 43.5],
-   "prefill": [383, 982, 998, 1175, 1298, 1270, 1224]},
-  {"name": "Qwen3.6-35B-A3B Q4_K_XL, 262k setting", "color": "#d95f02", "settings": "strata-q36, --max-context 262144 --kv q8, 8 threads, no MTP",
-   "x": [2048, 8192, 16384, 32768, 65536, 131000, 262000],
-   "decode": [40.3, 34.6, 31.0, 29.1, 17.9, 11.4, 6.5],
-   "prefill": [1168, 1337, 1344, 1306, 947, 539, 229]},
-  {"name": "Qwen3.6-35B-A3B Q4_K_XL, 64k setting", "color": "#e6ab02", "settings": "strata-q36, --max-context 65536 --kv q8, 8 threads, MTP block loaded but unused",
-   "x": [2048, 8192, 16384, 32768],
-   "decode": [51.3, 41.0, 34.2, 31.1],
-   "prefill": [1124, 1324, 1342, 1307]},
-  {"name": "Ornith 122B IQ3_XXS", "color": "#7570b3", "settings": "--pcie-frac 0.5, STRATA_Q36_SKIP_THR=0.10, 7 threads, q8 KV, chunk 2048, 131k context",
-   "x": [2048, 8192, 16384, 32768, 65536, 131000],
-   "decode": [13.8, 11.8, 10.8, 9.5, 6.5, 4.3],
-   "prefill": [619, 632, 632, 592, 395, 177]},
-  {"name": "Bolt 74B 24GB QAT", "color": "#e7298a", "settings": "native NVFP4, STRATA_NH_SKIP_REL=0.5, DFlash depth 3, q8_0 KV, 8 threads, prefetch 12, 262k context",
-   "x": [2048, 8192, 16384, 32768, 65536, 131000, 262000],
-   "decode": [40.9, 35.8, 35.6, 31.5, 25.5, 20.2, 9.7],
-   "prefill": [926, 900, 857, 763, 556, 207, 74]},
-  {"name": "Super-VL 120B IQ2_XXS", "color": "#66a61e", "settings": "STRATA_NH_SKIP_REL=0.5, q8_0 KV, 8 threads, prefetch 16, 131k context",
-   "x": [2048, 16384, 32768, 65536, 131000],
-   "decode": [7.6, 7.8, 7.8, 7.8, 6.4],
-   "prefill": [350, 346, 328, 285, 153]}
+  {
+   "name": "Flash-Next IQ3_XXS",
+   "color": "#1b9e77",
+   "settings": "production config, MTP spec 4, int8 KV, kv-resident 32768, 262k context",
+   "x": [
+    2175,
+    8978,
+    19464,
+    32939,
+    64622,
+    131113,
+    226520
+   ],
+   "decode": [
+    36.9,
+    39.9,
+    42.7,
+    48.9,
+    49.1,
+    38.9,
+    43.5
+   ],
+   "prefill": [
+    383,
+    982,
+    998,
+    1175,
+    1298,
+    1270,
+    1224
+   ],
+   "short": "Flash-Next IQ3_XXS"
+  },
+  {
+   "name": "Qwen3.6-35B-A3B Q4_K_XL, 262k setting",
+   "color": "#d95f02",
+   "settings": "strata-q36, --max-context 262144 --kv q8, 8 threads, no MTP",
+   "x": [
+    2048,
+    8192,
+    16384,
+    32768,
+    65536,
+    131000,
+    262000
+   ],
+   "decode": [
+    40.3,
+    34.6,
+    31.0,
+    29.1,
+    17.9,
+    11.4,
+    6.5
+   ],
+   "prefill": [
+    1168,
+    1337,
+    1344,
+    1306,
+    947,
+    539,
+    229
+   ],
+   "short": "35B Q4_K_XL (262k setting)"
+  },
+  {
+   "name": "Qwen3.6-35B-A3B Q4_K_XL, 64k setting",
+   "color": "#e6ab02",
+   "settings": "strata-q36, --max-context 65536 --kv q8, 8 threads, MTP block loaded but unused",
+   "x": [
+    2048,
+    8192,
+    16384,
+    32768
+   ],
+   "decode": [
+    51.3,
+    41.0,
+    34.2,
+    31.1
+   ],
+   "prefill": [
+    1124,
+    1324,
+    1342,
+    1307
+   ],
+   "short": "35B Q4_K_XL (64k setting)"
+  },
+  {
+   "name": "Ornith 122B IQ3_XXS",
+   "color": "#7570b3",
+   "settings": "--pcie-frac 0.5, STRATA_Q36_SKIP_THR=0.10, 7 threads, q8 KV, chunk 2048, 131k context",
+   "x": [
+    2048,
+    8192,
+    16384,
+    32768,
+    65536,
+    131000
+   ],
+   "decode": [
+    13.8,
+    11.8,
+    10.8,
+    9.5,
+    6.5,
+    4.3
+   ],
+   "prefill": [
+    619,
+    632,
+    632,
+    592,
+    395,
+    177
+   ],
+   "short": "Ornith 122B IQ3_XXS"
+  },
+  {
+   "name": "Bolt 74B 24GB QAT",
+   "color": "#e7298a",
+   "settings": "native NVFP4, STRATA_NH_SKIP_REL=0.5, DFlash depth 3, q8_0 KV, 8 threads, prefetch 12, 262k context",
+   "x": [
+    2048,
+    8192,
+    16384,
+    32768,
+    65536,
+    131000,
+    262000
+   ],
+   "decode": [
+    40.9,
+    35.8,
+    35.6,
+    31.5,
+    25.5,
+    20.2,
+    9.7
+   ],
+   "prefill": [
+    926,
+    900,
+    857,
+    763,
+    556,
+    207,
+    74
+   ],
+   "short": "Bolt 74B QAT"
+  },
+  {
+   "name": "Super-VL 120B IQ2_XXS",
+   "color": "#66a61e",
+   "settings": "STRATA_NH_SKIP_REL=0.5, q8_0 KV, 8 threads, prefetch 16, 131k context",
+   "x": [
+    2048,
+    8192,
+    16384,
+    32768,
+    65536,
+    131000
+   ],
+   "decode": [
+    7.6,
+    7.5,
+    7.8,
+    7.8,
+    7.8,
+    6.4
+   ],
+   "prefill": [
+    350,
+    350,
+    346,
+    328,
+    285,
+    153
+   ],
+   "short": "Super-VL 120B IQ2_XXS"
+  },
+  {
+   "name": "Ornith 122B IQ3_XXS, chunk 4096",
+   "color": "#a6761d",
+   "settings": "as Ornith, --chunk 4096, 65k context",
+   "x": [
+    2048,
+    8192,
+    16384,
+    32768
+   ],
+   "decode": [
+    13.1,
+    11.5,
+    10.2,
+    8.7
+   ],
+   "prefill": [
+    629,
+    1094,
+    993,
+    797
+   ],
+   "short": "Ornith, `--chunk 4096`"
+  }
  ]
 }

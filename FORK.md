@@ -17,6 +17,7 @@ Real text, one or two runs per point, best settings per model, x = prompt tokens
 
 **Decode, tok/s**
 
+<!-- decode -->
 | Model | 2k | 8k | 16k | 32k | 64k | 128k | 256k |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Flash-Next IQ3_XXS | 36.9 | 39.9 | 42.7 | 48.9 | 49.1 | 38.9 | 43.5 |
@@ -24,10 +25,13 @@ Real text, one or two runs per point, best settings per model, x = prompt tokens
 | 35B Q4_K_XL (64k setting) | 51.3 | 41.0 | 34.2 | 31.1 | - | - | - |
 | Ornith 122B IQ3_XXS | 13.8 | 11.8 | 10.8 | 9.5 | 6.5 | 4.3 | - |
 | Bolt 74B QAT | 40.9 | 35.8 | 35.6 | 31.5 | 25.5 | 20.2 | 9.7 |
-| Super-VL 120B IQ2_XXS | 7.6 | - | 7.8 | 7.8 | 7.8 | 6.4 | - |
+| Super-VL 120B IQ2_XXS | 7.6 | 7.5 | 7.8 | 7.8 | 7.8 | 6.4 | - |
+| Ornith, `--chunk 4096` | 13.1 | 11.5 | 10.2 | 8.7 | - | - | - |
+<!-- /decode -->
 
 **Prefill, tok/s** (average over the whole prompt)
 
+<!-- prefill -->
 | Model | 2k | 8k | 16k | 32k | 64k | 128k | 256k |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Flash-Next IQ3_XXS | 383 | 982 | 998 | 1,175 | 1,298 | 1,270 | 1,224 |
@@ -35,7 +39,9 @@ Real text, one or two runs per point, best settings per model, x = prompt tokens
 | 35B Q4_K_XL (64k setting) | 1,124 | 1,324 | 1,342 | 1,307 | - | - | - |
 | Ornith 122B IQ3_XXS | 619 | 632 | 632 | 592 | 395 | 177 | - |
 | Bolt 74B QAT | 926 | 900 | 857 | 763 | 556 | 207 | 74 |
-| Super-VL 120B IQ2_XXS | 350 | - | 346 | 328 | 285 | 153 | - |
+| Super-VL 120B IQ2_XXS | 350 | 350 | 346 | 328 | 285 | 153 | - |
+| Ornith, `--chunk 4096` | 629 | 1,094 | 993 | 797 | - | - | - |
+<!-- /prefill -->
 
 Flash-Next's 19k and 227k points sit under 16k and 256k; its 2k prefill includes warm-up. Bolt's 131k decode is inflated by a repetition loop and its 262k point is one pass. "-" = not measured.
 
