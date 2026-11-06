@@ -314,6 +314,8 @@ against 28.5 base: no speed gain (noise is about 2 tok/s). Bolt is bound by its 
 No gain: only 5-15% of lookups miss and the upstream rank-based tail skip (`STRATA_ROUTE_TAIL_SKIP=7`, on by default) already takes the cheap ones. With the tail skip switched off
 (`STRATA_ROUTE_TAIL_SKIP=0`) decode falls to 29.8, and adding `STRATA_SKIP_THR=0.05` brings it back only to 31.4, so keep the upstream rule and leave `STRATA_SKIP_THR` unset.
 
+Repeat runs at the end of the session (same settings): Ornith base 12.4, `STRATA_Q36_SKIP_THR` 0.10 gives 16.9 and 0.12 gives 22.1 tok/s; Super-VL base 6.5 / 7.0, `STRATA_NH_SKIP_REL=0.5` 7.8 / 8.1 in two further runs (+17%).
+
 **How to pick a value.** Start with the table, run `STRATA_Q36_NLL=1` on a text like your workload (`--tokens` prompt, `--force` continuation), and take the largest threshold whose perplexity
 stays within about 3% of w = 0. Check the skip-rate line: a rate above 90% means the model is running almost entirely on the VRAM-resident experts.
 
