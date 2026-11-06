@@ -214,6 +214,48 @@ Prefill falls about 6% from 31k to 227k. Decode does not fall; it rises because 
 k8v4 (816 bytes per cell against int8's 1,056) gave a GPU expert cache only 1% larger (5,684 experts against 5,624) because the resident KV window
 is fixed at 32,768 cells, and expert-cache hit rates matched (85% at 31k, 90% at 129k and 227k). Saving KV space does not speed this model up; int8 stays.
 
+## Tuning sweeps, part 2: PCIe split, prefetch, prefill (2026-11-05)
+
+Same box (6 cores / 12 threads in the VM, pinned; PCIe 4.0 x8, 13 GB/s measured). Warm decode, one run each unless two numbers are
+shown; differences under about 0.5 tok/s (Ornith, Super-VL) or 2 tok/s (Bolt) are noise.
+
+**Ornith 122B, `--pcie-frac` (fork engine; 16k context, q8 KV, no MTP block, 7-8 threads).** `--pcie-frac F` sends that fraction of a
+batch's slot-less experts over PCIe to the GPU while the CPU pool runs the rest. It defaults to 0 and had not been tried.
+
+| `--pcie-frac` | Decode tok/s (synthetic prompt) |
+|---|---|
+| 0 | 7.7 / 7.9 |
+| 0.25 | 9.8 / 10.6 |
+| 0.4 / 0.5 / 0.6 | 10.7 / 10.5-11.2 / 10.7-10.8 (a flat plateau) |
+| 0.75 | 10.1 / 9.9 |
+| 1.0 (CPU idle) | 8.9 / 9.0 |
+
+On real text the same setting reads 12.6 tok/s (prose) and 6.9 (code; code routes to a wider spread of experts). Threads: 6 / 7 / 8 gave
+11.0 / 11.2 / 10.5-11.2, 10 gave 8.2 (the VM has 6 cores). Context 8k and 16k are equal (11.0-11.3). Prefill chunk 512 and 2048 are equal
+(about 620 tok/s at 2-4k tokens); chunk 1024 halves it, 256 gives 77, 128 gives 12-29. The 512-token prefill test (150 tok/s) understated
+Ornith: each pass has a fixed cost of about 3.3 s, so it reaches 600+ tok/s from 2,048 tokens up.
+
+Next-layer prefetch (`STRATA_Q36_PREFETCH=1`, worktree branch `ornith-dflash2`, off by default): the GPU runs the next layer's router on this
+layer's hidden state (77-89% of the guessed slot-less experts are used) and copies them into a second staging buffer one layer ahead. It
+gave no speedup (12.0 / 9.7 / 11.7 / 10.0 against 12.6 plain), so the PCIe link and the CPU pool are already close to saturated together.
+
+DFlash2 on Ornith with `--pcie-frac 0.5`: plain 6.9 code / 12.3 prose; depth 1 gave 6.4 / 11.9, depth 2 7.1 / 10.5, depth 3 5.9 / 8.4,
+depth 4 3.9 / 7.2. A depth-1 step costs 285 ms against 145 ms for a plain token (1.98x), and yields 1.82 tokens, so it is slower; the drafter
+also halves the resident experts (16 to 8 per layer).
+
+**Bolt 24GB QAT (DFlash depth 3, 8 threads, 300 MiB reserve).** Prefetch 12 gave 29.2-30.2, 16 gave 28.8-30.9, 24 gave 26.2-27.9 (the earlier
+best, 6 threads with prefetch 8, was 26-27). A later baseline run read 27.3-27.8 at prefetch 16. `--pcie-frac` does nothing at 0.10 (27.3-27.9)
+and hurts above that (0.50: 14-18, 0.75: 15-17, with prefill collapsing from 900 to 100-600 tok/s).
+
+**Super-VL 120B.** 8 threads and prefetch 16 gave 6.9 / 7.2 (20 and 24 gave 6.6-6.9). `--pcie-frac` 0.15-0.25 gave 7.1-7.3 (not different);
+0.5 and 0.75 are worse (6.7-6.9, 6.2-6.4). Prefill is 345-357 tok/s throughout.
+
+**Prefill at larger prompts** (tok/s): Bolt 900 (2,048 and 4,096 tokens; 797 at 3,072), Super-VL 350 (290 at 3,072), Ornith 620 (470 at 3,072).
+
+**Not measured, suggested:** the GPU power limit reads 120 W against a 165 W default, and the "SW Power Capping" counter shows about 892 s
+of capping; raising it in LACT is untested. After long benchmark batches the page cache can hold 25 GiB of other models' files, and Flash-Next's start
+refuses to load (resident complement against available RAM minus 8 GiB); evicting the files with `posix_fadvise(DONTNEED)` fixes it without root.
+
 ## Tuning sweeps (2026-11-04)
 
 One run per row, warm decode, this box (12 logical CPUs), production stopped during the runs. Differences under about 0.5 tok/s are noise.
