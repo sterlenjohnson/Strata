@@ -35,6 +35,57 @@
    "short": "Flash-Next IQ3_XXS"
   },
   {
+   "name": "Flash-Next IQ3_XXS, YaRN 2 (512k)",
+   "short": "Flash-Next, YaRN 2 (512k)",
+   "color": "#66c2a5",
+   "settings": "--rope-scaling yarn --rope-scale 2 --max-context 524288, int8 KV",
+   "x": [
+    101138,
+    254463,
+    438219
+   ],
+   "decode": [
+    36.5,
+    38.1,
+    34.2
+   ],
+   "prefill": [
+    1126,
+    1133,
+    1118
+   ]
+  },
+  {
+   "name": "Flash-Next IQ3_XXS, YaRN 4 (1M)",
+   "short": "Flash-Next, YaRN 4 (1M)",
+   "color": "#0b6b4f",
+   "settings": "--rope-scaling yarn --rope-scale 4 --max-context 1048576, --kv k8v4 (int8 does not fit in RAM with all experts resident)",
+   "x": [
+    10377,
+    31975,
+    103013,
+    247404,
+    433945,
+    696141
+   ],
+   "decode": [
+    35.0,
+    34.5,
+    32.7,
+    31.6,
+    30.8,
+    29.8
+   ],
+   "prefill": [
+    428,
+    903,
+    1003,
+    983,
+    955,
+    870
+   ]
+  },
+  {
    "name": "Qwen3.6-35B-A3B Q4_K_XL, 262k setting",
    "color": "#d95f02",
    "settings": "strata-q36, --max-context 262144 --kv q8, 8 threads, no MTP",

@@ -3,12 +3,12 @@
 import json, os, re
 here = os.path.dirname(os.path.abspath(__file__)); fork = os.path.join(here, "..", "..", "FORK.md")
 D = json.load(open(os.path.join(here, "context.json")))["series"]
-xs = [2048, 8192, 16384, 32768, 65536, 131000, 262000]
+xs = [2048, 8192, 16384, 32768, 65536, 131000, 262000, 524288, 1000000]
 def near(s, x, key):
-    c = [(abs(xx - x) / x, v) for xx, v in zip(s["x"], s[key]) if abs(xx - x) / x < 0.2 and v is not None]
+    c = [(abs(xx - x) / x, v) for xx, v in zip(s["x"], s[key]) if abs(xx - x) / x < (0.1 if x >= 500000 else 0.2) and v is not None]
     return min(c)[1] if c else None
 def tab(key, fmt):
-    r = ["| Model | " + " | ".join(f"{round(x/1024)}k" for x in xs) + " |", "|---|" + "---:|" * len(xs)]
+    r = ["| Model | " + " | ".join(("1M" if x >= 1000000 else f"{round(x/1024)}k") for x in xs) + " |", "|---|" + "---:|" * len(xs)]
     for s in D:
         r.append(f"| {s.get('short', s['name'])} | " + " | ".join("-" if near(s, x, key) is None else fmt(near(s, x, key)) for x in xs) + " |")
     return "\n".join(r)

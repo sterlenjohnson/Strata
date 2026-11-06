@@ -18,33 +18,37 @@ Real text, one or two runs per point, best settings per model, x = prompt tokens
 **Decode, tok/s**
 
 <!-- decode -->
-| Model | 2k | 8k | 16k | 32k | 64k | 128k | 256k |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Flash-Next IQ3_XXS | 36.9 | 39.9 | 42.7 | 48.9 | 49.1 | 38.9 | 43.5 |
-| 35B Q4_K_XL (262k setting) | 40.3 | 34.6 | 31.0 | 29.1 | 17.9 | 11.4 | 6.5 |
-| 35B Q4_K_XL (64k setting) | 51.3 | 41.0 | 34.2 | 31.1 | - | - | - |
-| 35B IQ3_XXS (262k setting) | 73.1 | 60.1 | 48.3 | 34.7 | 22.0 | 12.8 | 6.9 |
-| Ornith 122B IQ3_XXS | 13.8 | 11.8 | 10.8 | 9.5 | 6.5 | 4.3 | - |
-| Bolt 74B QAT | 40.9 | 35.8 | 35.6 | 31.5 | 25.5 | 20.2 | 9.7 |
-| Super-VL 120B IQ2_XXS | 7.6 | 7.5 | 7.8 | 7.8 | 7.8 | 6.4 | - |
-| Ornith, `--chunk 4096` | 13.1 | 11.5 | 10.2 | 8.7 | - | - | - |
-| Flint 40B Q8_0 (llama.cpp, pp512) | - | 29.7 | 28.6 | 28.1 | 24.9 | 20.7 | - |
+| Model | 2k | 8k | 16k | 32k | 64k | 128k | 256k | 512k | 1M |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Flash-Next IQ3_XXS | 36.9 | 39.9 | 42.7 | 48.9 | 49.1 | 38.9 | 43.5 | - | - |
+| Flash-Next, YaRN 2 (512k) | - | - | - | - | - | - | 38.1 | - | - |
+| Flash-Next, YaRN 4 (1M) | - | - | - | 34.5 | - | - | 31.6 | - | - |
+| 35B Q4_K_XL (262k setting) | 40.3 | 34.6 | 31.0 | 29.1 | 17.9 | 11.4 | 6.5 | - | - |
+| 35B Q4_K_XL (64k setting) | 51.3 | 41.0 | 34.2 | 31.1 | - | - | - | - | - |
+| 35B IQ3_XXS (262k setting) | 73.1 | 60.1 | 48.3 | 34.7 | 22.0 | 12.8 | 6.9 | - | - |
+| Ornith 122B IQ3_XXS | 13.8 | 11.8 | 10.8 | 9.5 | 6.5 | 4.3 | - | - | - |
+| Bolt 74B QAT | 40.9 | 35.8 | 35.6 | 31.5 | 25.5 | 20.2 | 9.7 | - | - |
+| Super-VL 120B IQ2_XXS | 7.6 | 7.5 | 7.8 | 7.8 | 7.8 | 6.4 | - | - | - |
+| Ornith, `--chunk 4096` | 13.1 | 11.5 | 10.2 | 8.7 | - | - | - | - | - |
+| Flint 40B Q8_0 (llama.cpp, pp512) | - | 29.7 | 28.6 | 28.1 | 24.9 | 20.7 | - | - | - |
 <!-- /decode -->
 
 **Prefill, tok/s** (average over the whole prompt)
 
 <!-- prefill -->
-| Model | 2k | 8k | 16k | 32k | 64k | 128k | 256k |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Flash-Next IQ3_XXS | 383 | 982 | 998 | 1,175 | 1,298 | 1,270 | 1,224 |
-| 35B Q4_K_XL (262k setting) | 1,168 | 1,337 | 1,344 | 1,306 | 947 | 539 | 229 |
-| 35B Q4_K_XL (64k setting) | 1,124 | 1,324 | 1,342 | 1,307 | - | - | - |
-| 35B IQ3_XXS (262k setting) | 1,254 | 974 | 944 | 884 | 702 | 452 | 211 |
-| Ornith 122B IQ3_XXS | 619 | 632 | 632 | 592 | 395 | 177 | - |
-| Bolt 74B QAT | 926 | 900 | 857 | 763 | 556 | 207 | 74 |
-| Super-VL 120B IQ2_XXS | 350 | 350 | 346 | 328 | 285 | 153 | - |
-| Ornith, `--chunk 4096` | 629 | 1,094 | 993 | 797 | - | - | - |
-| Flint 40B Q8_0 (llama.cpp, pp512) | - | 209 | 207 | 200 | 188 | 163 | - |
+| Model | 2k | 8k | 16k | 32k | 64k | 128k | 256k | 512k | 1M |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Flash-Next IQ3_XXS | 383 | 982 | 998 | 1,175 | 1,298 | 1,270 | 1,224 | - | - |
+| Flash-Next, YaRN 2 (512k) | - | - | - | - | - | - | 1,133 | - | - |
+| Flash-Next, YaRN 4 (1M) | - | - | - | 903 | - | - | 983 | - | - |
+| 35B Q4_K_XL (262k setting) | 1,168 | 1,337 | 1,344 | 1,306 | 947 | 539 | 229 | - | - |
+| 35B Q4_K_XL (64k setting) | 1,124 | 1,324 | 1,342 | 1,307 | - | - | - | - | - |
+| 35B IQ3_XXS (262k setting) | 1,254 | 974 | 944 | 884 | 702 | 452 | 211 | - | - |
+| Ornith 122B IQ3_XXS | 619 | 632 | 632 | 592 | 395 | 177 | - | - | - |
+| Bolt 74B QAT | 926 | 900 | 857 | 763 | 556 | 207 | 74 | - | - |
+| Super-VL 120B IQ2_XXS | 350 | 350 | 346 | 328 | 285 | 153 | - | - | - |
+| Ornith, `--chunk 4096` | 629 | 1,094 | 993 | 797 | - | - | - | - | - |
+| Flint 40B Q8_0 (llama.cpp, pp512) | - | 209 | 207 | 200 | 188 | 163 | - | - | - |
 <!-- /prefill -->
 
 Flash-Next's 19k and 227k points sit under 16k and 256k; its 2k prefill includes warm-up. Bolt's 131k decode is inflated by a repetition loop and its 262k point is one pass. "-" = not measured. Flint (llama.cpp) prefill is one 512-token chunk at that depth, not a whole-prompt average.

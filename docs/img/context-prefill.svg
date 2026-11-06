@@ -1,89 +1,104 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 480" font-family="sans-serif" font-size="12">
-<rect width="820" height="480" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 600" font-family="sans-serif" font-size="12">
+<rect width="820" height="600" fill="#ffffff"/>
 <text x="410.0" y="22" text-anchor="middle" font-size="15" font-weight="bold" fill="#222">Prefill speed over context</text>
-<line x1="62" x2="800" y1="330.0" y2="330.0" stroke="#e3e3e3"/><text x="56" y="334.0" text-anchor="end" fill="#444">0</text>
-<line x1="62" x2="800" y1="185.0" y2="185.0" stroke="#e3e3e3"/><text x="56" y="189.0" text-anchor="end" fill="#444">1000</text>
+<line x1="62" x2="800" y1="450.0" y2="450.0" stroke="#e3e3e3"/><text x="56" y="454.0" text-anchor="end" fill="#444">0</text>
+<line x1="62" x2="800" y1="245.0" y2="245.0" stroke="#e3e3e3"/><text x="56" y="249.0" text-anchor="end" fill="#444">1000</text>
 <line x1="62" x2="800" y1="40.0" y2="40.0" stroke="#e3e3e3"/><text x="56" y="44.0" text-anchor="end" fill="#444">2000</text>
-<line x1="102.25126752002774" x2="102.25126752002774" y1="40" y2="330" stroke="#eee"/><text x="102.25126752002774" y="346" text-anchor="middle" fill="#444">2k</text>
-<line x1="199.23351030523887" x2="199.23351030523887" y1="40" y2="330" stroke="#eee"/><text x="199.23351030523887" y="346" text-anchor="middle" fill="#444">4k</text>
-<line x1="296.21575309045" x2="296.21575309045" y1="40" y2="330" stroke="#eee"/><text x="296.21575309045" y="346" text-anchor="middle" fill="#444">8k</text>
-<line x1="393.19799587566115" x2="393.19799587566115" y1="40" y2="330" stroke="#eee"/><text x="393.19799587566115" y="346" text-anchor="middle" fill="#444">16k</text>
-<line x1="490.1802386608723" x2="490.1802386608723" y1="40" y2="330" stroke="#eee"/><text x="490.1802386608723" y="346" text-anchor="middle" fill="#444">32k</text>
-<line x1="587.1624814460835" x2="587.1624814460835" y1="40" y2="330" stroke="#eee"/><text x="587.1624814460835" y="346" text-anchor="middle" fill="#444">64k</text>
-<line x1="684.1447242312945" x2="684.1447242312945" y1="40" y2="330" stroke="#eee"/><text x="684.1447242312945" y="346" text-anchor="middle" fill="#444">128k</text>
-<line x1="781.1269670165057" x2="781.1269670165057" y1="40" y2="330" stroke="#eee"/><text x="781.1269670165057" y="346" text-anchor="middle" fill="#444">256k</text>
-<line x1="62" x2="62" y1="40" y2="330" stroke="#888"/><line x1="62" x2="800" y1="330" y2="330" stroke="#888"/>
-<text x="431.0" y="366" text-anchor="middle" fill="#222">prompt tokens already in context (log scale)</text>
-<text transform="translate(16,185.0) rotate(-90)" text-anchor="middle" fill="#222">prefill tok/s (average over the prompt)</text>
-<polyline fill="none" stroke="#1b9e77" stroke-width="2.2" points="110.7,274.5 309.0,187.6 417.3,185.3 490.9,159.6 585.2,141.8 684.2,145.8 760.7,152.5"/>
-<circle cx="110.7" cy="274.5" r="3.6" fill="#1b9e77"/>
-<circle cx="309.0" cy="187.6" r="3.6" fill="#1b9e77"/>
-<circle cx="417.3" cy="185.3" r="3.6" fill="#1b9e77"/>
-<circle cx="490.9" cy="159.6" r="3.6" fill="#1b9e77"/>
-<circle cx="585.2" cy="141.8" r="3.6" fill="#1b9e77"/>
-<circle cx="684.2" cy="145.8" r="3.6" fill="#1b9e77"/>
-<circle cx="760.7" cy="152.5" r="3.6" fill="#1b9e77"/>
-<polyline fill="none" stroke="#d95f02" stroke-width="2.2" points="102.3,160.6 296.2,136.1 393.2,135.1 490.2,140.6 587.2,192.7 684.1,251.8 781.1,296.8"/>
-<circle cx="102.3" cy="160.6" r="3.6" fill="#d95f02"/>
-<circle cx="296.2" cy="136.1" r="3.6" fill="#d95f02"/>
-<circle cx="393.2" cy="135.1" r="3.6" fill="#d95f02"/>
-<circle cx="490.2" cy="140.6" r="3.6" fill="#d95f02"/>
-<circle cx="587.2" cy="192.7" r="3.6" fill="#d95f02"/>
-<circle cx="684.1" cy="251.8" r="3.6" fill="#d95f02"/>
-<circle cx="781.1" cy="296.8" r="3.6" fill="#d95f02"/>
-<polyline fill="none" stroke="#e6ab02" stroke-width="2.2" points="102.3,167.0 296.2,138.0 393.2,135.4 490.2,140.5"/>
-<circle cx="102.3" cy="167.0" r="3.6" fill="#e6ab02"/>
-<circle cx="296.2" cy="138.0" r="3.6" fill="#e6ab02"/>
-<circle cx="393.2" cy="135.4" r="3.6" fill="#e6ab02"/>
-<circle cx="490.2" cy="140.5" r="3.6" fill="#e6ab02"/>
-<polyline fill="none" stroke="#e41a1c" stroke-width="2.2" points="102.3,148.2 296.2,188.8 393.2,193.1 490.2,201.8 587.2,228.2 684.1,264.5 781.1,299.4"/>
-<circle cx="102.3" cy="148.2" r="3.6" fill="#e41a1c"/>
-<circle cx="296.2" cy="188.8" r="3.6" fill="#e41a1c"/>
-<circle cx="393.2" cy="193.1" r="3.6" fill="#e41a1c"/>
-<circle cx="490.2" cy="201.8" r="3.6" fill="#e41a1c"/>
-<circle cx="587.2" cy="228.2" r="3.6" fill="#e41a1c"/>
-<circle cx="684.1" cy="264.5" r="3.6" fill="#e41a1c"/>
-<circle cx="781.1" cy="299.4" r="3.6" fill="#e41a1c"/>
-<polyline fill="none" stroke="#7570b3" stroke-width="2.2" points="102.3,240.2 296.2,238.4 393.2,238.4 490.2,244.2 587.2,272.7 684.1,304.3"/>
-<circle cx="102.3" cy="240.2" r="3.6" fill="#7570b3"/>
-<circle cx="296.2" cy="238.4" r="3.6" fill="#7570b3"/>
-<circle cx="393.2" cy="238.4" r="3.6" fill="#7570b3"/>
-<circle cx="490.2" cy="244.2" r="3.6" fill="#7570b3"/>
-<circle cx="587.2" cy="272.7" r="3.6" fill="#7570b3"/>
-<circle cx="684.1" cy="304.3" r="3.6" fill="#7570b3"/>
-<polyline fill="none" stroke="#e7298a" stroke-width="2.2" points="102.3,195.7 296.2,199.5 393.2,205.7 490.2,219.4 587.2,249.4 684.1,300.0 781.1,319.3"/>
-<circle cx="102.3" cy="195.7" r="3.6" fill="#e7298a"/>
-<circle cx="296.2" cy="199.5" r="3.6" fill="#e7298a"/>
-<circle cx="393.2" cy="205.7" r="3.6" fill="#e7298a"/>
-<circle cx="490.2" cy="219.4" r="3.6" fill="#e7298a"/>
-<circle cx="587.2" cy="249.4" r="3.6" fill="#e7298a"/>
-<circle cx="684.1" cy="300.0" r="3.6" fill="#e7298a"/>
-<circle cx="781.1" cy="319.3" r="3.6" fill="#e7298a"/>
-<polyline fill="none" stroke="#66a61e" stroke-width="2.2" points="102.3,279.2 296.2,279.2 393.2,279.8 490.2,282.4 587.2,288.7 684.1,307.8"/>
-<circle cx="102.3" cy="279.2" r="3.6" fill="#66a61e"/>
-<circle cx="296.2" cy="279.2" r="3.6" fill="#66a61e"/>
-<circle cx="393.2" cy="279.8" r="3.6" fill="#66a61e"/>
-<circle cx="490.2" cy="282.4" r="3.6" fill="#66a61e"/>
-<circle cx="587.2" cy="288.7" r="3.6" fill="#66a61e"/>
-<circle cx="684.1" cy="307.8" r="3.6" fill="#66a61e"/>
-<polyline fill="none" stroke="#a6761d" stroke-width="2.2" points="102.3,238.8 296.2,171.4 393.2,186.0 490.2,214.4"/>
-<circle cx="102.3" cy="238.8" r="3.6" fill="#a6761d"/>
-<circle cx="296.2" cy="171.4" r="3.6" fill="#a6761d"/>
-<circle cx="393.2" cy="186.0" r="3.6" fill="#a6761d"/>
-<circle cx="490.2" cy="214.4" r="3.6" fill="#a6761d"/>
-<polyline fill="none" stroke="#555555" stroke-width="2.2" points="296.2,299.7 393.2,300.0 490.2,301.0 587.2,302.7 684.1,306.4"/>
-<circle cx="296.2" cy="299.7" r="3.6" fill="#555555"/>
-<circle cx="393.2" cy="300.0" r="3.6" fill="#555555"/>
-<circle cx="490.2" cy="301.0" r="3.6" fill="#555555"/>
-<circle cx="587.2" cy="302.7" r="3.6" fill="#555555"/>
-<circle cx="684.1" cy="306.4" r="3.6" fill="#555555"/>
-<line x1="62" x2="84" y1="384" y2="384" stroke="#1b9e77" stroke-width="2.5"/><circle cx="73" cy="384" r="3.6" fill="#1b9e77"/><text x="92" y="388" fill="#222">Flash-Next IQ3_XXS</text>
-<line x1="442" x2="464" y1="384" y2="384" stroke="#d95f02" stroke-width="2.5"/><circle cx="453" cy="384" r="3.6" fill="#d95f02"/><text x="472" y="388" fill="#222">Qwen3.6-35B-A3B Q4_K_XL, 262k setting</text>
-<line x1="62" x2="84" y1="404" y2="404" stroke="#e6ab02" stroke-width="2.5"/><circle cx="73" cy="404" r="3.6" fill="#e6ab02"/><text x="92" y="408" fill="#222">Qwen3.6-35B-A3B Q4_K_XL, 64k setting</text>
-<line x1="442" x2="464" y1="404" y2="404" stroke="#e41a1c" stroke-width="2.5"/><circle cx="453" cy="404" r="3.6" fill="#e41a1c"/><text x="472" y="408" fill="#222">Qwen3.6-35B-A3B IQ3_XXS, 262k setting</text>
-<line x1="62" x2="84" y1="424" y2="424" stroke="#7570b3" stroke-width="2.5"/><circle cx="73" cy="424" r="3.6" fill="#7570b3"/><text x="92" y="428" fill="#222">Ornith 122B IQ3_XXS</text>
-<line x1="442" x2="464" y1="424" y2="424" stroke="#e7298a" stroke-width="2.5"/><circle cx="453" cy="424" r="3.6" fill="#e7298a"/><text x="472" y="428" fill="#222">Bolt 74B 24GB QAT</text>
-<line x1="62" x2="84" y1="444" y2="444" stroke="#66a61e" stroke-width="2.5"/><circle cx="73" cy="444" r="3.6" fill="#66a61e"/><text x="92" y="448" fill="#222">Super-VL 120B IQ2_XXS</text>
-<line x1="442" x2="464" y1="444" y2="444" stroke="#a6761d" stroke-width="2.5"/><circle cx="453" cy="444" r="3.6" fill="#a6761d"/><text x="472" y="448" fill="#222">Ornith 122B IQ3_XXS, chunk 4096</text>
-<line x1="62" x2="84" y1="464" y2="464" stroke="#555555" stroke-width="2.5"/><circle cx="73" cy="464" r="3.6" fill="#555555"/><text x="92" y="468" fill="#222">Flint 40B Q8_0 (llama.cpp)</text>
+<line x1="93.15303597076681" x2="93.15303597076681" y1="40" y2="450" stroke="#eee"/><text x="93.15303597076681" y="466" text-anchor="middle" fill="#444">2k</text>
+<line x1="168.21381005719837" x2="168.21381005719837" y1="40" y2="450" stroke="#eee"/><text x="168.21381005719837" y="466" text-anchor="middle" fill="#444">4k</text>
+<line x1="243.2745841436299" x2="243.2745841436299" y1="40" y2="450" stroke="#eee"/><text x="243.2745841436299" y="466" text-anchor="middle" fill="#444">8k</text>
+<line x1="318.3353582300615" x2="318.3353582300615" y1="40" y2="450" stroke="#eee"/><text x="318.3353582300615" y="466" text-anchor="middle" fill="#444">16k</text>
+<line x1="393.39613231649304" x2="393.39613231649304" y1="40" y2="450" stroke="#eee"/><text x="393.39613231649304" y="466" text-anchor="middle" fill="#444">32k</text>
+<line x1="468.4569064029246" x2="468.4569064029246" y1="40" y2="450" stroke="#eee"/><text x="468.4569064029246" y="466" text-anchor="middle" fill="#444">64k</text>
+<line x1="543.5176804893562" x2="543.5176804893562" y1="40" y2="450" stroke="#eee"/><text x="543.5176804893562" y="466" text-anchor="middle" fill="#444">128k</text>
+<line x1="618.5784545757878" x2="618.5784545757878" y1="40" y2="450" stroke="#eee"/><text x="618.5784545757878" y="466" text-anchor="middle" fill="#444">256k</text>
+<line x1="693.6392286622192" x2="693.6392286622192" y1="40" y2="450" stroke="#eee"/><text x="693.6392286622192" y="466" text-anchor="middle" fill="#444">512k</text>
+<line x1="768.7000027486508" x2="768.7000027486508" y1="40" y2="450" stroke="#eee"/><text x="768.7000027486508" y="466" text-anchor="middle" fill="#444">1M</text>
+<line x1="62" x2="62" y1="40" y2="450" stroke="#888"/><line x1="62" x2="800" y1="450" y2="450" stroke="#888"/>
+<text x="431.0" y="486" text-anchor="middle" fill="#222">prompt tokens already in context (log scale)</text>
+<text transform="translate(16,245.0) rotate(-90)" text-anchor="middle" fill="#222">prefill tok/s (average over the prompt)</text>
+<polyline fill="none" stroke="#1b9e77" stroke-width="2.2" points="99.7,371.5 253.2,248.7 337.0,245.4 394.0,209.1 466.9,183.9 543.6,189.7 602.8,199.1"/>
+<circle cx="99.7" cy="371.5" r="3.6" fill="#1b9e77"/>
+<circle cx="253.2" cy="248.7" r="3.6" fill="#1b9e77"/>
+<circle cx="337.0" cy="245.4" r="3.6" fill="#1b9e77"/>
+<circle cx="394.0" cy="209.1" r="3.6" fill="#1b9e77"/>
+<circle cx="466.9" cy="183.9" r="3.6" fill="#1b9e77"/>
+<circle cx="543.6" cy="189.7" r="3.6" fill="#1b9e77"/>
+<circle cx="602.8" cy="199.1" r="3.6" fill="#1b9e77"/>
+<polyline fill="none" stroke="#66c2a5" stroke-width="2.2" points="515.4,219.2 615.4,217.7 674.2,220.8"/>
+<circle cx="515.4" cy="219.2" r="3.6" fill="#66c2a5"/>
+<circle cx="615.4" cy="217.7" r="3.6" fill="#66c2a5"/>
+<circle cx="674.2" cy="220.8" r="3.6" fill="#66c2a5"/>
+<polyline fill="none" stroke="#0b6b4f" stroke-width="2.2" points="268.9,362.3 390.7,264.9 517.4,244.4 612.3,248.5 673.2,254.2 724.3,271.6"/>
+<circle cx="268.9" cy="362.3" r="3.6" fill="#0b6b4f"/>
+<circle cx="390.7" cy="264.9" r="3.6" fill="#0b6b4f"/>
+<circle cx="517.4" cy="244.4" r="3.6" fill="#0b6b4f"/>
+<circle cx="612.3" cy="248.5" r="3.6" fill="#0b6b4f"/>
+<circle cx="673.2" cy="254.2" r="3.6" fill="#0b6b4f"/>
+<circle cx="724.3" cy="271.6" r="3.6" fill="#0b6b4f"/>
+<polyline fill="none" stroke="#d95f02" stroke-width="2.2" points="93.2,210.6 243.3,175.9 318.3,174.5 393.4,182.3 468.5,255.9 543.5,339.5 618.5,403.1"/>
+<circle cx="93.2" cy="210.6" r="3.6" fill="#d95f02"/>
+<circle cx="243.3" cy="175.9" r="3.6" fill="#d95f02"/>
+<circle cx="318.3" cy="174.5" r="3.6" fill="#d95f02"/>
+<circle cx="393.4" cy="182.3" r="3.6" fill="#d95f02"/>
+<circle cx="468.5" cy="255.9" r="3.6" fill="#d95f02"/>
+<circle cx="543.5" cy="339.5" r="3.6" fill="#d95f02"/>
+<circle cx="618.5" cy="403.1" r="3.6" fill="#d95f02"/>
+<polyline fill="none" stroke="#e6ab02" stroke-width="2.2" points="93.2,219.6 243.3,178.6 318.3,174.9 393.4,182.1"/>
+<circle cx="93.2" cy="219.6" r="3.6" fill="#e6ab02"/>
+<circle cx="243.3" cy="178.6" r="3.6" fill="#e6ab02"/>
+<circle cx="318.3" cy="174.9" r="3.6" fill="#e6ab02"/>
+<circle cx="393.4" cy="182.1" r="3.6" fill="#e6ab02"/>
+<polyline fill="none" stroke="#e41a1c" stroke-width="2.2" points="93.2,192.9 243.3,250.3 318.3,256.5 393.4,268.8 468.5,306.1 543.5,357.3 618.5,406.7"/>
+<circle cx="93.2" cy="192.9" r="3.6" fill="#e41a1c"/>
+<circle cx="243.3" cy="250.3" r="3.6" fill="#e41a1c"/>
+<circle cx="318.3" cy="256.5" r="3.6" fill="#e41a1c"/>
+<circle cx="393.4" cy="268.8" r="3.6" fill="#e41a1c"/>
+<circle cx="468.5" cy="306.1" r="3.6" fill="#e41a1c"/>
+<circle cx="543.5" cy="357.3" r="3.6" fill="#e41a1c"/>
+<circle cx="618.5" cy="406.7" r="3.6" fill="#e41a1c"/>
+<polyline fill="none" stroke="#7570b3" stroke-width="2.2" points="93.2,323.1 243.3,320.4 318.3,320.4 393.4,328.6 468.5,369.0 543.5,413.7"/>
+<circle cx="93.2" cy="323.1" r="3.6" fill="#7570b3"/>
+<circle cx="243.3" cy="320.4" r="3.6" fill="#7570b3"/>
+<circle cx="318.3" cy="320.4" r="3.6" fill="#7570b3"/>
+<circle cx="393.4" cy="328.6" r="3.6" fill="#7570b3"/>
+<circle cx="468.5" cy="369.0" r="3.6" fill="#7570b3"/>
+<circle cx="543.5" cy="413.7" r="3.6" fill="#7570b3"/>
+<polyline fill="none" stroke="#e7298a" stroke-width="2.2" points="93.2,260.2 243.3,265.5 318.3,274.3 393.4,293.6 468.5,336.0 543.5,407.6 618.5,434.8"/>
+<circle cx="93.2" cy="260.2" r="3.6" fill="#e7298a"/>
+<circle cx="243.3" cy="265.5" r="3.6" fill="#e7298a"/>
+<circle cx="318.3" cy="274.3" r="3.6" fill="#e7298a"/>
+<circle cx="393.4" cy="293.6" r="3.6" fill="#e7298a"/>
+<circle cx="468.5" cy="336.0" r="3.6" fill="#e7298a"/>
+<circle cx="543.5" cy="407.6" r="3.6" fill="#e7298a"/>
+<circle cx="618.5" cy="434.8" r="3.6" fill="#e7298a"/>
+<polyline fill="none" stroke="#66a61e" stroke-width="2.2" points="93.2,378.2 243.3,378.2 318.3,379.1 393.4,382.8 468.5,391.6 543.5,418.6"/>
+<circle cx="93.2" cy="378.2" r="3.6" fill="#66a61e"/>
+<circle cx="243.3" cy="378.2" r="3.6" fill="#66a61e"/>
+<circle cx="318.3" cy="379.1" r="3.6" fill="#66a61e"/>
+<circle cx="393.4" cy="382.8" r="3.6" fill="#66a61e"/>
+<circle cx="468.5" cy="391.6" r="3.6" fill="#66a61e"/>
+<circle cx="543.5" cy="418.6" r="3.6" fill="#66a61e"/>
+<polyline fill="none" stroke="#a6761d" stroke-width="2.2" points="93.2,321.1 243.3,225.7 318.3,246.4 393.4,286.6"/>
+<circle cx="93.2" cy="321.1" r="3.6" fill="#a6761d"/>
+<circle cx="243.3" cy="225.7" r="3.6" fill="#a6761d"/>
+<circle cx="318.3" cy="246.4" r="3.6" fill="#a6761d"/>
+<circle cx="393.4" cy="286.6" r="3.6" fill="#a6761d"/>
+<polyline fill="none" stroke="#555555" stroke-width="2.2" points="243.3,407.2 318.3,407.6 393.4,409.0 468.5,411.5 543.5,416.6"/>
+<circle cx="243.3" cy="407.2" r="3.6" fill="#555555"/>
+<circle cx="318.3" cy="407.6" r="3.6" fill="#555555"/>
+<circle cx="393.4" cy="409.0" r="3.6" fill="#555555"/>
+<circle cx="468.5" cy="411.5" r="3.6" fill="#555555"/>
+<circle cx="543.5" cy="416.6" r="3.6" fill="#555555"/>
+<line x1="62" x2="84" y1="504" y2="504" stroke="#1b9e77" stroke-width="2.5"/><circle cx="73" cy="504" r="3.6" fill="#1b9e77"/><text x="92" y="508" fill="#222">Flash-Next IQ3_XXS</text>
+<line x1="442" x2="464" y1="504" y2="504" stroke="#66c2a5" stroke-width="2.5"/><circle cx="453" cy="504" r="3.6" fill="#66c2a5"/><text x="472" y="508" fill="#222">Flash-Next IQ3_XXS, YaRN 2 (512k)</text>
+<line x1="62" x2="84" y1="524" y2="524" stroke="#0b6b4f" stroke-width="2.5"/><circle cx="73" cy="524" r="3.6" fill="#0b6b4f"/><text x="92" y="528" fill="#222">Flash-Next IQ3_XXS, YaRN 4 (1M)</text>
+<line x1="442" x2="464" y1="524" y2="524" stroke="#d95f02" stroke-width="2.5"/><circle cx="453" cy="524" r="3.6" fill="#d95f02"/><text x="472" y="528" fill="#222">Qwen3.6-35B-A3B Q4_K_XL, 262k setting</text>
+<line x1="62" x2="84" y1="544" y2="544" stroke="#e6ab02" stroke-width="2.5"/><circle cx="73" cy="544" r="3.6" fill="#e6ab02"/><text x="92" y="548" fill="#222">Qwen3.6-35B-A3B Q4_K_XL, 64k setting</text>
+<line x1="442" x2="464" y1="544" y2="544" stroke="#e41a1c" stroke-width="2.5"/><circle cx="453" cy="544" r="3.6" fill="#e41a1c"/><text x="472" y="548" fill="#222">Qwen3.6-35B-A3B IQ3_XXS, 262k setting</text>
+<line x1="62" x2="84" y1="564" y2="564" stroke="#7570b3" stroke-width="2.5"/><circle cx="73" cy="564" r="3.6" fill="#7570b3"/><text x="92" y="568" fill="#222">Ornith 122B IQ3_XXS</text>
+<line x1="442" x2="464" y1="564" y2="564" stroke="#e7298a" stroke-width="2.5"/><circle cx="453" cy="564" r="3.6" fill="#e7298a"/><text x="472" y="568" fill="#222">Bolt 74B 24GB QAT</text>
+<line x1="62" x2="84" y1="584" y2="584" stroke="#66a61e" stroke-width="2.5"/><circle cx="73" cy="584" r="3.6" fill="#66a61e"/><text x="92" y="588" fill="#222">Super-VL 120B IQ2_XXS</text>
+<line x1="442" x2="464" y1="584" y2="584" stroke="#a6761d" stroke-width="2.5"/><circle cx="453" cy="584" r="3.6" fill="#a6761d"/><text x="472" y="588" fill="#222">Ornith 122B IQ3_XXS, chunk 4096</text>
+<line x1="62" x2="84" y1="604" y2="604" stroke="#555555" stroke-width="2.5"/><circle cx="73" cy="604" r="3.6" fill="#555555"/><text x="92" y="608" fill="#222">Flint 40B Q8_0 (llama.cpp)</text>
 </svg>
