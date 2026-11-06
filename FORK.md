@@ -14,6 +14,23 @@ been ported onto v0.2.10. Numbers below are measurements, with the engine and lo
 | OS | Fedora 44 **virtual machine** on **Proxmox**. KSM on the host hurt performance, so numbers may differ on bare metal; record the host's KSM state with each run |
 | Build | upstream v0.2.10 built in a CUDA 12.8 container (`-j2`, 40 GB cap); the host nvcc cannot compile against GCC 16 |
 
+## Where things stand (2026-11-06)
+
+Decode tok/s on this box (RTX 4060 Ti 16 GB at a 120 W limit, 6-core Zen 2 VM), start of the tuning work against now. Details and the logs behind each number are in the sections below.
+
+| Model | Start | Now | What did it |
+|---|---|---|---|
+| Flash-Next IQ3_XXS (production) | about 41 | about 41 | unchanged: every flag, the DFlash2 drafter, a weight-skip port and `--pcie-frac` 0.55-0.65 left it within noise |
+| Bolt 74B 24GB QAT | 18 | **about 37** | `--nvfp4 native` (33.5), `STRATA_NH_SKIP_REL=0.5` (37), DFlash depth 3, 8 threads, prefetch 12 |
+| Bolt 74B UD-Q3_K_XL | 15 | about 23 | DFlash depth 3, prefetch 12 |
+| Super-VL 120B IQ2_XXS | 5 | **about 8.3** | 8 threads, prefetch 16, `STRATA_NH_SKIP_REL=0.5-0.7` |
+| Ornith 122B IQ3_XXS | 3.3 | **about 17 (up to 27 for code)** | `--pcie-frac 0.5`, 7 threads, q8 KV, 16k context, `STRATA_Q36_SKIP_THR=0.10` (0.12-0.15 for code) |
+| Flint 40B Q8_0 (llama.cpp) | not run | about 32 | `-ncmoe 33 -t 6 -ub 2048` |
+
+The two large steps came from (1) sending part of the cache-missed experts over PCIe while the CPU works on the rest (Ornith, `--pcie-frac`, already in the fork engine but off by default) and
+(2) not computing cache-missed experts whose routing weight is small (new here: `STRATA_Q36_SKIP_THR`, `STRATA_NH_SKIP_REL`; quality measured as perplexity on forced text, see the expert-skipping section).
+Both trade a small, measured quality cost for speed on the CPU-bound models; Flash-Next does not need them.
+
 ## Production: Flash-Next (Swift Qwen3.8 Flash-Next, IQ3_XXS)
 
 Launch config (`strata-iq3_xxs.json`): `--native` IQ3_XXS shard plus PLE table, learned/mix expert profile,
@@ -213,6 +230,136 @@ Full-context test (262k setting, prompts built from source files, 200 tokens, on
 Prefill falls about 6% from 31k to 227k. Decode does not fall; it rises because source text drafts well, so it says nothing about context cost.
 k8v4 (816 bytes per cell against int8's 1,056) gave a GPU expert cache only 1% larger (5,684 experts against 5,624) because the resident KV window
 is fixed at 32,768 cells, and expert-cache hit rates matched (85% at 31k, 90% at 129k and 227k). Saving KV space does not speed this model up; int8 stays.
+
+## Tuning sweeps, part 3: Ornith profile, threads, prefill chunk (2026-11-05)
+
+Same box, GPU power limit 120 W. Ornith 122B IQ3_XXS on the fork engine (16k context, q8 KV, no MTP block, `--pcie-frac 0.5`, 200 generated tokens of a prose
+prompt unless noted), warm decode in tok/s. Differences under about 0.5 tok/s are noise; rows are one run each unless a count is given.
+
+**Where the time goes (`STRATA_Q36_PROF=1`).** In a 200-token run (9,600 decode layers, 16.2 s) the CPU expert pool is busy 12.1 s: gate/up 9.4 s, down 2.7 s,
+activation quantization 0.03 s, 97.2 GB streamed (8 GB/s on average). Per layer the GPU front half costs 0.07 ms to enqueue and 0.48 ms to wait for the routing,
+and the hybrid MoE step 1.56 ms (1.77 ms in a second profile run), about two thirds of the layer. The remaining decode time is the expert phase, not launches.
+
+| Setting | Decode tok/s |
+|---|---|
+| Base, 7 threads (four runs) | 12.7 / 12.6 / 12.7 / 12.1 |
+| Base, 5 threads | 11.9 |
+| 5 threads pinned to even / odd / first-six logical CPUs | 12.2 / 11.6 / 11.7 |
+| `STRATA_Q36_THP=1` (huge-page arena), 5 / 7 threads | 12.4 / 12.9 |
+| THP + even CPUs, 5 threads | 12.8 |
+| `STRATA_IQ_PREFETCH` 0 / 1024 / 4096 / 8192 | 12.4 / 12.1 / 12.5 / 12.2 |
+| `STRATA_IQ256_GATHER=1` / `CUDA_DEVICE_MAX_CONNECTIONS=32` | 12.3 / 12.2 |
+
+Nothing moves the number outside the 12.1-12.7 spread of the base runs. THP is higher in all three pairs (+0.2 to +0.6) but within that spread, so it is not
+adopted. Pinning to the even or odd logical CPUs does not help; the VM's 12 logical CPUs are 6 cores.
+
+**Staging buffers.** `STRATA_Q36_STAGE_BUFS=1` (one PCIe staging buffer instead of two) leaves decode unchanged (11.1 against 11.0-11.3) and cuts prefill from
+598-634 to 484-514 tok/s at 2,048 tokens (-19%, two runs each). Two buffers stay.
+
+**Prefill chunk at an 8k prompt.** `--chunk 4096` prefills at 1,034-1,043 tok/s against 624-634 for the default 2048 (+64%), but the larger staging area leaves 6
+experts per layer resident instead of 16 and decode falls from 10.4-11.0 to 10.0-10.3. `--chunk 8192` is refused (`bad --chunk / --max-context`). Use 4096 only for
+prompt-heavy work.
+
+**Next-layer routing guess (`STRATA_Q36_PREDICT=1`, accuracy only).** The host guess one layer ahead matches 79% of the actual picks and 77% of the picks that
+have no slot.
+
+**Bolt UD-Q3_K_XL (IQ3 file), DFlash depth 3, 8 threads, 300 MiB reserve.** The old setting (6 threads, prefetch 4) reads 15.1-15.6. With DFlash and prefetch 16 it reads
+21.1-21.6 (two runs) and prefetch 12 reads 22.2-24.0 (one run). Without DFlash, 8 threads with prefetch 12 or 16 read 13.8-14.4, below the old setting, so for this file the
+gain is the drafter alone. Prefill is 499-501 tok/s (441-505 before).
+
+## Expert skipping: drop low-weight experts that would run on the CPU (2026-11-06)
+
+Experts with no VRAM slot cost a CPU pass (or a PCIe copy) each, and many of them carry a small routing weight. Skipping them removes that work. Only
+CPU-side entries are ever skipped; experts resident in VRAM or already prefetched are always computed. Off by default and bit-exact when unset.
+
+| Engine | Env var | Rule |
+|---|---|---|
+| Ornith (`strata-q36`) | `STRATA_Q36_SKIP_THR=w` | skip a slot-less expert whose routing weight is below w (weights sum to 1 over the top 8) |
+| Super-VL, Bolt (`strata-nh`) | `STRATA_NH_SKIP_REL=f` (or `STRATA_NH_SKIP_THR=w`) | skip below f times the row's largest weight (absolute weights depend on top-k and the model's scale, so use REL) |
+| Flash-Next (`strata`) | `STRATA_SKIP_THR=w` | same rule as Ornith; `STRATA_SKIP_HIST=1` prints the weight quantiles; works beside the upstream rank-based `STRATA_ROUTE_TAIL_SKIP` |
+
+Also available: `STRATA_Q36_SKIP_RENORM=1` / `STRATA_NH_SKIP_RENORM=1` (rescale the kept weights; worse, see below), `STRATA_Q36_NLL=1` / `STRATA_NH_NLL=1` with `--tokens PROMPT --force IDS`
+(teacher-forced perplexity through the skipping path; the output line `expert skipping (...): N of M CPU-side entries skipped` gives the skip rate).
+
+**Ornith 122B** (16k context, q8 KV, no MTP block, `--pcie-frac 0.5`, 7 threads). Speed: 200 tokens of a prose prompt, base 12.1 tok/s (code prompt base 12.1 too in this test).
+Perplexity change: 600 forced tokens after a 1,500-token prompt, one text per type; base perplexity prose 8.222, Python 7.816, TypeScript 3.255, docs 8.159. One run per cell
+unless "x2".
+
+| w | CPU-side entries skipped | Decode tok/s (prose / code) | Perplexity prose | Python | TypeScript | Docs |
+|---|---|---|---|---|---|---|
+| 0.04 | 2% | 12.4 | +0.8% | - | - | - |
+| 0.07 | 22-24% | 13.0 | +1.2% | +0.9% | - | - |
+| 0.085 | 43% | 14.6 / 15.2 | +3.1% | - | - | - |
+| 0.10 | 62-66% | 17.2, 17.1 (x2) / 18.0 | +3.4% | -2.0% | -0.4% | +2.0% |
+| 0.12 | 81-84% | 21.6 | +7.8% | -3.4% | - | - |
+| 0.15 | 93-96% | 27.0 | +12.2% | -3.7% | +2.5% | +14.8% |
+| 0.20 | 99% | - | - | - | +7.9% | +51.9% |
+
+Python and TypeScript stay at or better than base up to 0.12-0.15 (the 600-token samples are small, so a 2-4% gain is within sampling noise, but none of them degrades). Prose and docs
+pay about 3% at 0.10 and degrade fast beyond. **Recommendation: `STRATA_Q36_SKIP_THR=0.10`** (+42% decode, 3% perplexity on prose); up to 0.12-0.15 for code-only work; 0.07
+(+7%, +1.2%) when quality matters most. Top-1 agreement moves by under 1.5 points at 0.10.
+
+Variants that did not help: renormalising the kept weights is worse (perplexity +3.9% at 0.085, +14.0% at 0.10, +32.4% at 0.12; same speed as plain). A cap on the skipped weight mass per token
+(`mass cap`) is no better than the plain threshold: cap 0.25 gives 17.1 tok/s at +4.9% against 17.2 at +3.4% for w = 0.10. Deferring the same experts until after the next layer's
+attention (`STRATA_Q36_DEFER`) gave 12.0-12.2 tok/s (no gain at `--pcie-frac 0.5`) and +0.0% / +0.5% / +2.0% perplexity for 0.07 / 0.10 / 1.0. Next-layer prefetch gave no gain either (above).
+
+**Super-VL 120B** (`STRATA_NH_SKIP_REL`, 8 threads, prefetch 16, 600 forced tokens, one run each): perplexity base 17.43; REL 0.15 / 0.25 / 0.35 / 0.5 / 0.7 gives 17.25 / 16.67 / 16.52 / 16.31 / 16.40
+(slightly better than base, one 600-token text) with 7% / 22% / 45% / 74% / 92% of CPU-side entries skipped. Decode (tg64): base 6.6-6.9, REL 0.25 7.0, 0.35 7.5, 0.5 8.1 (+18%), 0.7 8.5 (+23-25%). Recommended: 0.5.
+This model's 22-of-512 routing carries many small weights, which is why it tolerates so much.
+
+**Bolt 74B 24GB QAT** (`STRATA_NH_SKIP_REL` 0.15 / 0.25 / 0.35 / 0.5, DFlash depth 3): perplexity 20.52 base against 20.52 / 20.65 / 20.47 / 20.68 (unchanged), 2-47% skipped, decode 27.0 / 29.5 / 29.6 / 28.4
+against 28.5 base: no speed gain (noise is about 2 tok/s). Bolt is bound by its dense weights and the drafter, not by the expert tail, so leave it off.
+
+**Flash-Next** (`STRATA_SKIP_THR`, production config, mean of the three short prompts, one run each; plain runs 39.1 and 38.6): 0.03 38.9, 0.05 37.3, 0.07 39.6, 0.05 renormalised 37.0.
+No gain: only 5-15% of lookups miss and the upstream rank-based tail skip (`STRATA_ROUTE_TAIL_SKIP=7`, on by default) already takes the cheap ones. With the tail skip switched off
+(`STRATA_ROUTE_TAIL_SKIP=0`) decode falls to 29.8, and adding `STRATA_SKIP_THR=0.05` brings it back only to 31.4, so keep the upstream rule and leave `STRATA_SKIP_THR` unset.
+
+**How to pick a value.** Start with the table, run `STRATA_Q36_NLL=1` on a text like your workload (`--tokens` prompt, `--force` continuation), and take the largest threshold whose perplexity
+stays within about 3% of w = 0. Check the skip-rate line: a rate above 90% means the model is running almost entirely on the VRAM-resident experts.
+
+**Does skipping hurt generated code?** Four coding prompts (binary search, word frequency, merge intervals, LRU cache; "reply with only the code block, with 3 asserts"), up to 1,400 tokens
+at the default sampling of the engine's `--tokens` path (greedy), each extracted and run in Python: base 3 of 4 pass (the LRU answer's own asserts fail), w = 0.10 3 of 4 (the merge-intervals function is
+correct but one of the model's asserts is wrong), w = 0.15 3 of 4 (the LRU answer is cut inside the reasoning block). Equal pass rates on four prompts is not a significant result, but there is no sign of a code regression
+and decode was 1.9x faster at 0.10 and 3.5x at 0.15 on the long generations.
+
+**Files changed** (all uncommitted in the working trees):
+- `/mnt/AI/Strata-ornith/src/qwen35/q36_engine.cu`: `STRATA_Q36_SKIP_THR`, `SKIP_RENORM`, mass cap, `DEFER`, `NLL`, `PROF`, `PREDICT`.
+- `/mnt/AI/Strata-ornith/src/nemotron_h/nh_engine.cu`: `STRATA_NH_SKIP_REL/THR/RENORM`, `STRATA_NH_NLL` (skip decided before the PCIe share, so skipped experts are never uploaded).
+- `/mnt/AI/Strata-main`: `src/core/expert_source.cpp` and `include/strata/core/expert_source.hpp` (decision and counters), `src/core/verify.cpp` and `include/strata/core/verify.hpp`
+  (weights to the host, renormalised combine), `src/kernels/cuda/elementwise.cu` and `include/strata/kernels/elementwise.hpp` (doorbell publishes weights), `src/program/generate.cpp` (stats line).
+
+## Bolt 74B 24GB QAT: native NVFP4 weights (2026-11-06)
+
+`strata-nh --nvfp4 native` (a flag of the fork's build, `/mnt/AI/Strata-ornith/build/strata-nh`; the older `build-dflash/strata-nh` binary does not have it) keeps the QAT file's NVFP4 dense weights
+as they are stored instead of transcoding them to Q8_0 (4.39 GB against 6.58 GB read per token). DFlash depth 3, 8 threads, 300 MiB reserve, prefetch 12, 2,048-token prompt, both timed passes:
+
+| Setup | Decode tok/s | Prefill tok/s |
+|---|---|---|
+| Q8 transcode (before), three runs | 27.2 / 30.2, 26.5 / 28.4, 26.3 / 28.6 | 897-907 |
+| `--nvfp4 native`, three runs | 32.4 / 34.5, 32.5 / 33.6, 33.3 / 34.5 | 911-924 |
+| native, DFlash depth 2 / 4 / 5 | 30.6 / 31.1, 34.4 / 33.2, 31.0 / 32.0 | 911-920 |
+| native, prefetch 8 / 16 / 24 | 31.8 / 33.0, 31.9 / 33.1, 31.0 / 32.2 | 910-918 |
+| native, 150 MiB reserve; 6 / 7 threads | 34.0 / 33.7; 31.4 / 34.3, 33.3 / 34.1 | 909-921 |
+| native + `--kv q4_0` | 31.3 / 33.2 (no gain); `--kv q4_0` alone 22.5 / 24.2 (worse); `--kv q8_0` alone 28.8 / 30.4 | |
+| native + `STRATA_NH_SKIP_REL` 0.35 / 0.5 (three runs) / 0.7 | 34.7 / 36.2; 36.5 / 37.5, 35.3 / 38.6, 36.7 / 38.3; 30.0 / 31.6 (worse) | 913-924 |
+| native, plain, two more runs next to those | 33.9 / 34.6, 32.1 / 33.8 | 909-920 |
+
+Quality of the Bolt skip (600 forced tokens, `STRATA_NH_NLL=1`, native weights): perplexity 20.69 plain, 20.45 at REL 0.5, 20.55 at 0.7 (unchanged within the noise of one text). **Recommended for Bolt QAT: `--nvfp4 native` with `STRATA_NH_SKIP_REL=0.5`, about 37 tok/s against 18 at the start of this work.**
+
+Bolt Q3_K_XL (not an NVFP4 file): `--nvfp4 native` and `--kv q4_0` change nothing (23.4 / 24.3 and 24.2 / 25.3 against 22.3 / 24.2); skipping gives 22.8 / 23.6.
+
+## Flint 40B (arch `flint`, Q8_0, 42 GB): runs in llama.cpp, not in Strata (2026-11-06)
+
+Strata has no `flint` architecture. The prebuilt llama.cpp b11798 at `/mnt/AI/llcpp-11798/root` loads it (the box has CUDA 12.6 only, so the CUDA 13 runtime libraries were extracted from the NVIDIA pip wheels
+into the scratchpad's `cu13/lib`). `llama-bench -ngl 99 -fa 1 -t 6 -ub 512 -p 512 -n 128 -r 2`, decode / prefill in tok/s: `-ncmoe` 40: 29.1 / 190; 38: 28.7 / 204; 36: 30.8 / 203; 35: 31.2 / 219; 34: 31.4 / 214; **33: 32.1 / 228**
+(`-ncmoe 28` does not fit: 18.8 GiB of experts on the 16 GB card; 32 and below were not tried). At `-ncmoe 36`: 4 / 5 / 6 / 7 / 8 threads give 30.8 / 30.5 / 30.8 / 30.2 / 28.5. Larger micro-batches
+help prefill a lot: pp2048 at `-ub` 1024 / 2048 reads 368 / 691 tok/s. `llama-server --n-cpu-moe 38 -c 8192` produced 200 tokens at about 29 tok/s. Use `-ncmoe 33 -t 6 -ub 2048`. Flint was only run for speed here
+(the file is a "Preview" base model; the quick completion test continued the prompt as plain text).
+
+## Flash-Next: nothing further (2026-11-06)
+
+`--pcie-frac` 0.55 / 0.60 / 0.65 added to the production config (two runs each, three short prompts) read 38.7-42.8 against 37.7-43.4 for the plain config: no gain. The weight-based skip port (above) and
+every earlier flag change also leave it at about 41 tok/s. The production configuration is unchanged.
 
 ## Tuning sweeps, part 2: PCIe split, prefetch, prefill (2026-11-05)
 
