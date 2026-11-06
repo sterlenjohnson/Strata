@@ -9,7 +9,7 @@ Models are about 47 GB of non-PLE weights, so dense weights sit in VRAM and expe
 ## Speed by context length
 
 Peak speed at 2k tokens flatters most models: **only Flash-Next holds its speed as the prompt grows**. The others lose decode speed with context (Bolt halves by 64k, Ornith by 64k, the 35B by 64k at a 262k setting) and prefill collapses beyond 64k.
-Real text, one or two runs per point, best settings per model, x = prompt tokens already in context.
+Real text, one or two runs per point, best settings per model, x = prompt tokens already in context. The graphs show one line per model; setting variants (YaRN 2, the 35B at a 64k setting, Ornith chunk 4096) are in the tables and the model files.
 
 ![Decode speed over context](docs/img/context-decode.svg)
 

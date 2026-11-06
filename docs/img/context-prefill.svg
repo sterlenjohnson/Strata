@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 560" font-family="sans-serif" font-size="12">
-<rect width="820" height="560" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 520" font-family="sans-serif" font-size="12">
+<rect width="820" height="520" fill="#ffffff"/>
 <text x="410.0" y="22" text-anchor="middle" font-size="15" font-weight="bold" fill="#222">Prefill speed over context</text>
 <line x1="62" x2="800" y1="370.0" y2="370.0" stroke="#e3e3e3"/><text x="56" y="374.0" text-anchor="end" fill="#444">0</text>
 <line x1="62" x2="800" y1="205.0" y2="205.0" stroke="#e3e3e3"/><text x="56" y="209.0" text-anchor="end" fill="#444">1000</text>
@@ -25,10 +25,6 @@
 <circle cx="466.9" cy="155.8" r="3.6" fill="#1b9e77"/>
 <circle cx="543.6" cy="160.4" r="3.6" fill="#1b9e77"/>
 <circle cx="602.8" cy="168.0" r="3.6" fill="#1b9e77"/>
-<polyline fill="none" stroke="#66c2a5" stroke-width="2.2" points="515.4,184.2 615.4,183.1 674.2,185.5"/>
-<circle cx="515.4" cy="184.2" r="3.6" fill="#66c2a5"/>
-<circle cx="615.4" cy="183.1" r="3.6" fill="#66c2a5"/>
-<circle cx="674.2" cy="185.5" r="3.6" fill="#66c2a5"/>
 <polyline fill="none" stroke="#0b6b4f" stroke-width="2.2" points="268.9,299.4 390.7,221.0 517.4,204.5 612.3,207.8 673.2,212.4 724.3,226.4"/>
 <circle cx="268.9" cy="299.4" r="3.6" fill="#0b6b4f"/>
 <circle cx="390.7" cy="221.0" r="3.6" fill="#0b6b4f"/>
@@ -44,11 +40,6 @@
 <circle cx="468.5" cy="213.7" r="3.6" fill="#d95f02"/>
 <circle cx="543.5" cy="281.1" r="3.6" fill="#d95f02"/>
 <circle cx="618.5" cy="332.2" r="3.6" fill="#d95f02"/>
-<polyline fill="none" stroke="#e6ab02" stroke-width="2.2" points="93.2,184.5 243.3,151.5 318.3,148.6 393.4,154.3"/>
-<circle cx="93.2" cy="184.5" r="3.6" fill="#e6ab02"/>
-<circle cx="243.3" cy="151.5" r="3.6" fill="#e6ab02"/>
-<circle cx="318.3" cy="148.6" r="3.6" fill="#e6ab02"/>
-<circle cx="393.4" cy="154.3" r="3.6" fill="#e6ab02"/>
 <polyline fill="none" stroke="#e41a1c" stroke-width="2.2" points="93.2,163.1 243.3,209.3 318.3,214.2 393.4,224.1 468.5,254.2 543.5,295.4 618.5,335.2"/>
 <circle cx="93.2" cy="163.1" r="3.6" fill="#e41a1c"/>
 <circle cx="243.3" cy="209.3" r="3.6" fill="#e41a1c"/>
@@ -79,11 +70,6 @@
 <circle cx="393.4" cy="315.9" r="3.6" fill="#66a61e"/>
 <circle cx="468.5" cy="323.0" r="3.6" fill="#66a61e"/>
 <circle cx="543.5" cy="344.8" r="3.6" fill="#66a61e"/>
-<polyline fill="none" stroke="#a6761d" stroke-width="2.2" points="93.2,266.2 243.3,189.5 318.3,206.2 393.4,238.5"/>
-<circle cx="93.2" cy="266.2" r="3.6" fill="#a6761d"/>
-<circle cx="243.3" cy="189.5" r="3.6" fill="#a6761d"/>
-<circle cx="318.3" cy="206.2" r="3.6" fill="#a6761d"/>
-<circle cx="393.4" cy="238.5" r="3.6" fill="#a6761d"/>
 <polyline fill="none" stroke="#555555" stroke-width="2.2" points="243.3,335.5 318.3,335.8 393.4,337.0 468.5,339.0 543.5,343.1"/>
 <circle cx="243.3" cy="335.5" r="3.6" fill="#555555"/>
 <circle cx="318.3" cy="335.8" r="3.6" fill="#555555"/>
@@ -91,14 +77,11 @@
 <circle cx="468.5" cy="339.0" r="3.6" fill="#555555"/>
 <circle cx="543.5" cy="343.1" r="3.6" fill="#555555"/>
 <line x1="62" x2="84" y1="424" y2="424" stroke="#1b9e77" stroke-width="2.5"/><circle cx="73" cy="424" r="3.6" fill="#1b9e77"/><text x="92" y="428" fill="#222">Flash-Next IQ3_XXS</text>
-<line x1="442" x2="464" y1="424" y2="424" stroke="#66c2a5" stroke-width="2.5"/><circle cx="453" cy="424" r="3.6" fill="#66c2a5"/><text x="472" y="428" fill="#222">Flash-Next IQ3_XXS, YaRN 2 (512k)</text>
-<line x1="62" x2="84" y1="444" y2="444" stroke="#0b6b4f" stroke-width="2.5"/><circle cx="73" cy="444" r="3.6" fill="#0b6b4f"/><text x="92" y="448" fill="#222">Flash-Next IQ3_XXS, YaRN 4 (1M)</text>
-<line x1="442" x2="464" y1="444" y2="444" stroke="#d95f02" stroke-width="2.5"/><circle cx="453" cy="444" r="3.6" fill="#d95f02"/><text x="472" y="448" fill="#222">Qwen3.6-35B-A3B Q4_K_XL, 262k setting</text>
-<line x1="62" x2="84" y1="464" y2="464" stroke="#e6ab02" stroke-width="2.5"/><circle cx="73" cy="464" r="3.6" fill="#e6ab02"/><text x="92" y="468" fill="#222">Qwen3.6-35B-A3B Q4_K_XL, 64k setting</text>
-<line x1="442" x2="464" y1="464" y2="464" stroke="#e41a1c" stroke-width="2.5"/><circle cx="453" cy="464" r="3.6" fill="#e41a1c"/><text x="472" y="468" fill="#222">Qwen3.6-35B-A3B IQ3_XXS, 262k setting</text>
-<line x1="62" x2="84" y1="484" y2="484" stroke="#7570b3" stroke-width="2.5"/><circle cx="73" cy="484" r="3.6" fill="#7570b3"/><text x="92" y="488" fill="#222">Ornith 122B IQ3_XXS</text>
-<line x1="442" x2="464" y1="484" y2="484" stroke="#e7298a" stroke-width="2.5"/><circle cx="453" cy="484" r="3.6" fill="#e7298a"/><text x="472" y="488" fill="#222">Bolt 74B 24GB QAT</text>
-<line x1="62" x2="84" y1="504" y2="504" stroke="#66a61e" stroke-width="2.5"/><circle cx="73" cy="504" r="3.6" fill="#66a61e"/><text x="92" y="508" fill="#222">Super-VL 120B IQ2_XXS</text>
-<line x1="442" x2="464" y1="504" y2="504" stroke="#a6761d" stroke-width="2.5"/><circle cx="453" cy="504" r="3.6" fill="#a6761d"/><text x="472" y="508" fill="#222">Ornith 122B IQ3_XXS, chunk 4096</text>
-<line x1="62" x2="84" y1="524" y2="524" stroke="#555555" stroke-width="2.5"/><circle cx="73" cy="524" r="3.6" fill="#555555"/><text x="92" y="528" fill="#222">Flint 40B Q8_0 (llama.cpp)</text>
+<line x1="442" x2="464" y1="424" y2="424" stroke="#0b6b4f" stroke-width="2.5"/><circle cx="453" cy="424" r="3.6" fill="#0b6b4f"/><text x="472" y="428" fill="#222">Flash-Next IQ3_XXS, YaRN 4 (1M)</text>
+<line x1="62" x2="84" y1="444" y2="444" stroke="#d95f02" stroke-width="2.5"/><circle cx="73" cy="444" r="3.6" fill="#d95f02"/><text x="92" y="448" fill="#222">Qwen3.6-35B-A3B Q4_K_XL, 262k setting</text>
+<line x1="442" x2="464" y1="444" y2="444" stroke="#e41a1c" stroke-width="2.5"/><circle cx="453" cy="444" r="3.6" fill="#e41a1c"/><text x="472" y="448" fill="#222">Qwen3.6-35B-A3B IQ3_XXS, 262k setting</text>
+<line x1="62" x2="84" y1="464" y2="464" stroke="#7570b3" stroke-width="2.5"/><circle cx="73" cy="464" r="3.6" fill="#7570b3"/><text x="92" y="468" fill="#222">Ornith 122B IQ3_XXS</text>
+<line x1="442" x2="464" y1="464" y2="464" stroke="#e7298a" stroke-width="2.5"/><circle cx="453" cy="464" r="3.6" fill="#e7298a"/><text x="472" y="468" fill="#222">Bolt 74B 24GB QAT</text>
+<line x1="62" x2="84" y1="484" y2="484" stroke="#66a61e" stroke-width="2.5"/><circle cx="73" cy="484" r="3.6" fill="#66a61e"/><text x="92" y="488" fill="#222">Super-VL 120B IQ2_XXS</text>
+<line x1="442" x2="464" y1="484" y2="484" stroke="#555555" stroke-width="2.5"/><circle cx="453" cy="484" r="3.6" fill="#555555"/><text x="472" y="488" fill="#222">Flint 40B Q8_0 (llama.cpp)</text>
 </svg>

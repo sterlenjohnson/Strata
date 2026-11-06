@@ -53,7 +53,8 @@
     1126,
     1133,
     1118
-   ]
+   ],
+   "plot": false
   },
   {
    "name": "Flash-Next IQ3_XXS, YaRN 4 (1M)",
@@ -140,7 +141,8 @@
     1342,
     1307
    ],
-   "short": "35B Q4_K_XL (64k setting)"
+   "short": "35B Q4_K_XL (64k setting)",
+   "plot": false
   },
   {
    "name": "Qwen3.6-35B-A3B IQ3_XXS, 262k setting",
@@ -290,7 +292,8 @@
     993,
     797
    ],
-   "short": "Ornith, `--chunk 4096`"
+   "short": "Ornith, `--chunk 4096`",
+   "plot": false
   },
   {
    "name": "Flint 40B Q8_0 (llama.cpp)",
