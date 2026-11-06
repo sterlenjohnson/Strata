@@ -18,14 +18,18 @@ been ported onto v0.2.10. Numbers below are measurements, with the engine and lo
 
 Decode tok/s on this box (RTX 4060 Ti 16 GB at a 120 W limit, 6-core Zen 2 VM), start of the tuning work against now. Details and the logs behind each number are in the sections below.
 
-| Model | Start | Now | What did it |
-|---|---|---|---|
-| Flash-Next IQ3_XXS (production) | about 41 | about 41 | unchanged: every flag, the DFlash2 drafter, a weight-skip port and `--pcie-frac` 0.55-0.65 left it within noise |
-| Bolt 74B 24GB QAT | 18 | **about 37** | `--nvfp4 native` (33.5), `STRATA_NH_SKIP_REL=0.5` (37), DFlash depth 3, 8 threads, prefetch 12 |
-| Bolt 74B UD-Q3_K_XL | 15 | about 23 | DFlash depth 3, prefetch 12 |
-| Super-VL 120B IQ2_XXS | 5 | **about 8.3** | 8 threads, prefetch 16, `STRATA_NH_SKIP_REL=0.5-0.7` |
-| Ornith 122B IQ3_XXS | 3.3 | **about 17 (up to 27 for code)** | `--pcie-frac 0.5`, 7 threads, q8 KV, 16k context, `STRATA_Q36_SKIP_THR=0.10` (0.12-0.15 for code) |
-| Flint 40B Q8_0 (llama.cpp) | not run | about 32 | `-ncmoe 33 -t 6 -ub 2048` |
+| Model | Decode start | Decode now | Prefill now (tok/s) | What did it |
+|---|---|---|---|---|
+| Flash-Next IQ3_XXS (production) | about 41 | about 41 | about 1,200 (31k to 227k-token prompts; 1,074-1,273 across runs) | unchanged: every flag, the DFlash2 drafter, a weight-skip port and `--pcie-frac` 0.55-0.65 left it within noise |
+| Bolt 74B 24GB QAT | 18 | **about 37** | **about 915-925** (was 900) | `--nvfp4 native` (33.5; prefill 911-924 against 897-907), `STRATA_NH_SKIP_REL=0.5` (37; prefill unchanged), DFlash depth 3, 8 threads, prefetch 12 |
+| Bolt 74B UD-Q3_K_XL | 15 | about 23 | about 500 (441-505 before) | DFlash depth 3, prefetch 12 |
+| Super-VL 120B IQ2_XXS | 5 | **about 8.3** | about 350 (343-357; unchanged by skipping) | 8 threads, prefetch 16, `STRATA_NH_SKIP_REL=0.5-0.7` |
+| Ornith 122B IQ3_XXS | 3.3 | **about 17 (up to 27 for code)** | about 600-630 at 2k-4k tokens; **about 1,040 with `--chunk 4096`** (8k prompt, decode -5%) | `--pcie-frac 0.5`, 7 threads, q8 KV, 16k context, `STRATA_Q36_SKIP_THR=0.10` (0.12-0.15 for code) |
+| Flint 40B Q8_0 (llama.cpp) | not run | about 32 | 228 at `-ub 512`, **691 at `-ub 2048`** (pp2048) | `-ncmoe 33 -t 6 -ub 2048` |
+
+Prefill is measured as the benchmark's 2,048-token prompt unless noted (Flash-Next: long prompts through the server). Ornith's speed depends on the chunk size: each prompt chunk streams all 38.9 GiB of experts over
+PCIe once (about 3.3 s at 13 GB/s), so a 512-token test reads 150 tok/s and a 2,048-token chunk about 620; larger chunks give more but leave fewer experts resident for decode. Skipping experts does not change prefill
+(prompt chunks above the hybrid row limit take the streaming path). The 3,072-token prompt is slower on every model (Bolt about 797, Super-VL about 290, Ornith about 470) for a reason not found.
 
 The two large steps came from (1) sending part of the cache-missed experts over PCIe while the CPU works on the rest (Ornith, `--pcie-frac`, already in the fork engine but off by default) and
 (2) not computing cache-missed experts whose routing weight is small (new here: `STRATA_Q36_SKIP_THR`, `STRATA_NH_SKIP_REL`; quality measured as perplexity on forced text, see the expert-skipping section).
