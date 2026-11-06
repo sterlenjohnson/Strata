@@ -28,6 +28,7 @@ Real text, one or two runs per point, best settings per model, x = prompt tokens
 | Bolt 74B QAT | 40.9 | 35.8 | 35.6 | 31.5 | 25.5 | 20.2 | 9.7 |
 | Super-VL 120B IQ2_XXS | 7.6 | 7.5 | 7.8 | 7.8 | 7.8 | 6.4 | - |
 | Ornith, `--chunk 4096` | 13.1 | 11.5 | 10.2 | 8.7 | - | - | - |
+| Flint 40B Q8_0 (llama.cpp, pp512) | - | 29.7 | 28.6 | 28.1 | 24.9 | - | - |
 <!-- /decode -->
 
 **Prefill, tok/s** (average over the whole prompt)
@@ -43,9 +44,10 @@ Real text, one or two runs per point, best settings per model, x = prompt tokens
 | Bolt 74B QAT | 926 | 900 | 857 | 763 | 556 | 207 | 74 |
 | Super-VL 120B IQ2_XXS | 350 | 350 | 346 | 328 | 285 | 153 | - |
 | Ornith, `--chunk 4096` | 629 | 1,094 | 993 | 797 | - | - | - |
+| Flint 40B Q8_0 (llama.cpp, pp512) | - | 209 | 207 | 200 | 188 | - | - |
 <!-- /prefill -->
 
-Flash-Next's 19k and 227k points sit under 16k and 256k; its 2k prefill includes warm-up. Bolt's 131k decode is inflated by a repetition loop and its 262k point is one pass. "-" = not measured.
+Flash-Next's 19k and 227k points sit under 16k and 256k; its 2k prefill includes warm-up. Bolt's 131k decode is inflated by a repetition loop and its 262k point is one pass. "-" = not measured. Flint (llama.cpp) prefill is one 512-token chunk at that depth, not a whole-prompt average.
 
 ## Start against now (short context)
 

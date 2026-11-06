@@ -111,3 +111,5 @@ The file has no MTP block, so the loader's `nextn_predict_layers` check was made
 
 At short context this is 1.8x the Q4_K_XL decode (73 against 40) because most experts stay in VRAM. The slope with context is the same as Q4_K_XL's (both reach 6.5-6.9 tok/s at 262k), which points to attention and KV cost rather than the expert split (not isolated by a separate test).
 
+At a 32k setting (`--max-context 32768`, 11.8 GiB free, more experts resident) the standard 2,048-token benchmark reads **85-86 tok/s decode** and **1,680-1,690 tok/s prefill** (three passes; that benchmark uses synthetic prompt tokens, so it is not directly comparable to the real-text sweep above).
+

@@ -240,6 +240,30 @@
     797
    ],
    "short": "Ornith, `--chunk 4096`"
+  },
+  {
+   "name": "Flint 40B Q8_0 (llama.cpp)",
+   "short": "Flint 40B Q8_0 (llama.cpp, pp512)",
+   "color": "#555555",
+   "settings": "llama.cpp b11798, -ncmoe 36 -ub 512; prefill is a 512-token chunk at that depth",
+   "x": [
+    8192,
+    16384,
+    32768,
+    65536
+   ],
+   "decode": [
+    29.7,
+    28.6,
+    28.1,
+    24.9
+   ],
+   "prefill": [
+    209,
+    207,
+    200,
+    188
+   ]
   }
  ]
 }

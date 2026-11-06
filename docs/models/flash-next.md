@@ -92,7 +92,7 @@ Decode does not fall with context (it moves with how predictable each prompt is,
 
 ### `--kv-resident` sweep
 
-Same method, prompts of about 32k, 128k and 225k tokens (decode tok/s / prefill tok/s). The 32,768 row is the earlier run (different session); a matched rerun of 8,192, 32,768 and 65,536 was queued.
+Same method, prompts of about 32k, 128k and 225k tokens (decode tok/s / prefill tok/s). The 32,768 row is the earlier run (a different session); the matched rerun below was taken in one session.
 
 | `--kv-resident` | 32k | 128k | 225k |
 |---|---|---|---|
@@ -103,6 +103,18 @@ Same method, prompts of about 32k, 128k and 225k tokens (decode tok/s / prefill 
 | 262,144 | 30.9 / 864 | 34.8 / 978 | 32.0 / 951 |
 
 16k, 32k and 65k are within noise (about 3-5 tok/s between runs). 131k and above take VRAM from the expert cache and lose speed.
+
+
+Matched rerun, two runs per setting, each run a fresh server start (decode tok/s, prefill tok/s at about 32k / 128k / 225k tokens; mean of the two runs):
+
+| `--kv-resident` | Decode 32k / 128k / 225k | Prefill 32k / 128k / 225k |
+|---|---|---|
+| 8,192 | 39.7 / 43.2 / 43.2 | 1,153 / 1,239 / 1,200 |
+| 32,768 (production) | 37.0 / 44.3 / 41.4 | 1,229 / 1,240 / 1,183 |
+| 65,536 | 37.0 / 43.5 / 39.8 | 1,044 / 1,231 / 1,220 |
+
+All decode differences are inside the run-to-run spread (about 4 tok/s between two runs of the same setting). One effect repeats in both pairs: 65,536 prefills a 32k prompt about 15% slower than 32,768 (1,036 and 1,052 against 1,231 and 1,226).
+8,192 is not worse than the production value at any length. Keep 32,768: nothing here justifies changing it, and a smaller window is only worth trying with a real expert-cache hit-rate comparison.
 
 ![decode](../img/context-decode.svg)
 

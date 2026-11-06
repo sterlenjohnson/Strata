@@ -4,7 +4,7 @@ Usage: python3 docs/bench/plot_context.py"""
 import json, math, os
 here = os.path.dirname(os.path.abspath(__file__))
 data = json.load(open(os.path.join(here, "context.json")))["series"]
-W, H, L, Rm, T, B = 820, 440, 62, 20, 40, 150
+W, H, L, Rm, T, B = 820, 480, 62, 20, 40, 150
 def chart(key, title, ylabel, out):
     pts = [(s, [(x, y) for x, y in zip(s["x"], s[key]) if y is not None]) for s in data]
     ymax = max(y for _, p in pts for _, y in p)

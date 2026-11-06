@@ -8,6 +8,17 @@ into the scratchpad's `cu13/lib`). `llama-bench -ngl 99 -fa 1 -t 6 -ub 512 -p 51
 help prefill a lot: pp2048 at `-ub` 1024 / 2048 reads 368 / 691 tok/s. `llama-server --n-cpu-moe 38 -c 8192` produced 200 tokens at about 29 tok/s. Use `-ncmoe 33 -t 6 -ub 2048`. Flint was only run for speed here
 (the file is a "Preview" base model; the quick completion test continued the prompt as plain text).
 
-## Performance over context
+## Performance over context (2026-11-06)
 
-Not measured yet. `llama-bench -d` at -ub 2048 and depths up to 64k failed to allocate its compute buffers; smaller-depth reruns were queued.
+llama.cpp b11798, `llama-bench -ngl 99 -ncmoe 36 -fa 1 -t 6 -ub 512 -p 512 -n 64 -d <depth>`, one run each. Prefill here is the speed of one 512-token chunk
+at that depth, not an average over a whole prompt, so it is not the same measure as the Strata tables. `-ub 2048` and `-ncmoe 33` failed to allocate their compute buffers once depth was added.
+
+| Context depth | Prefill (pp512) tok/s | Decode tok/s |
+|---|---|---|
+| 0 | 154 | 29.5 |
+| 8,192 | 209 | 29.7 |
+| 16,384 | 207 | 28.6 |
+| 32,768 | 200 | 28.1 |
+| 65,536 | 188 | 24.9 |
+
+Decode holds close to 30 tok/s to 32k and loses about 15% by 64k. The 0 and 8k prefill points differ because the first run includes warm-up. The 131k depth was queued with `-ncmoe 38`.
