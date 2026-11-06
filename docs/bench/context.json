@@ -92,6 +92,39 @@
    "short": "35B Q4_K_XL (64k setting)"
   },
   {
+   "name": "Qwen3.6-35B-A3B IQ3_XXS, 262k setting",
+   "short": "35B IQ3_XXS (262k setting)",
+   "color": "#e41a1c",
+   "settings": "strata-q36, --no-mtp-block --max-context 262144 --kv q8, 8 threads, chunk 512",
+   "x": [
+    2048,
+    8192,
+    16384,
+    32768,
+    65536,
+    131000,
+    262000
+   ],
+   "decode": [
+    73.1,
+    60.1,
+    48.3,
+    34.7,
+    22.0,
+    12.8,
+    6.9
+   ],
+   "prefill": [
+    1254,
+    974,
+    944,
+    884,
+    702,
+    452,
+    211
+   ]
+  },
+  {
    "name": "Ornith 122B IQ3_XXS",
    "color": "#7570b3",
    "settings": "--pcie-frac 0.5, STRATA_Q36_SKIP_THR=0.10, 7 threads, q8 KV, chunk 2048, 131k context",

@@ -93,3 +93,21 @@ The short-context loss at 262k is the KV reservation; the slowdown beyond 32k re
 ![decode](../img/context-decode.svg)
 
 ![prefill](../img/context-prefill.svg)
+
+### IQ3_XXS (13.2 GB, fits the GPU)
+
+`Qwen3.6-35B-A3B-UD-IQ3_XXS.gguf` (unsloth), `--no-mtp-block --max-context 262144 --kv q8 --cpu-threads 8`, prompt chunk 512 (the engine default; larger chunks were not tried), 64 generated tokens, one run each.
+The file has no MTP block, so the loader's `nextn_predict_layers` check was made optional in this branch's build. 184 of 256 experts per layer are resident in VRAM (7.6 GiB), against 47 for Q4_K_XL at the same setting.
+
+| Prompt tokens | Decode tok/s | Prefill tok/s |
+|---|---|---|
+| 2,048 | 73.1 | 1,254 |
+| 8,192 | 60.1 | 974 |
+| 16,384 | 48.3 | 944 |
+| 32,768 | 34.7 | 884 |
+| 65,536 | 22.0 | 702 |
+| 131,000 | 12.8 | 452 |
+| 262,000 | 6.9 | 211 |
+
+At short context this is 1.8x the Q4_K_XL decode (73 against 40) because most experts stay in VRAM. The slope with context is the same as Q4_K_XL's (both reach 6.5-6.9 tok/s at 262k), which points to attention and KV cost rather than the expert split (not isolated by a separate test).
+
