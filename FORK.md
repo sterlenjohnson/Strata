@@ -216,7 +216,7 @@ is fixed at 32,768 cells, and expert-cache hit rates matched (85% at 31k, 90% at
 
 ## Tuning sweeps, part 2: PCIe split, prefetch, prefill (2026-11-05)
 
-Same box (6 cores / 12 threads in the VM, pinned; PCIe 4.0 x8, 13 GB/s measured). Warm decode, one run each unless two numbers are
+Same box (6 cores / 12 threads in the VM, pinned; PCIe 4.0 x8, 13 GB/s measured; **the GPU power limit was 120 W** for every number in this file, against a 165 W default). Warm decode, one run each unless two numbers are
 shown; differences under about 0.5 tok/s (Ornith, Super-VL) or 2 tok/s (Bolt) are noise.
 
 **Ornith 122B, `--pcie-frac` (fork engine; 16k context, q8 KV, no MTP block, 7-8 threads).** `--pcie-frac F` sends that fraction of a
