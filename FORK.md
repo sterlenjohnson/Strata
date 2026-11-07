@@ -76,6 +76,7 @@ The two tables use different prompts, so the same model reads differently (Ornit
 | [docs/models/](docs/models/README.md) | one file per model: flags, sweeps, negative results |
 | [docs/expert-skipping.md](docs/expert-skipping.md) | skipping rules and quality checks |
 | [docs/kv-codecs.md](docs/kv-codecs.md) | KV-cache codec quality test |
+| [docs/upstream-v0.2.12.md](docs/upstream-v0.2.12.md) | what is ported onto upstream v0.2.12 and what is not |
 | [docs/tandem-and-ngram.md](docs/tandem-and-ngram.md) | tandem.cpp and n-gram speculation on llama.cpp |
 | [docs/tuning-method.md](docs/tuning-method.md) | how numbers were taken, noise levels |
 | [docs/bench/](docs/bench/) | context data and the plot script |
