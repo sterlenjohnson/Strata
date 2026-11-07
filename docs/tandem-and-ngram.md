@@ -38,4 +38,15 @@ Earlier runs showed the cached-expert path ending the copy-edit prompt after `"\
 
 So the earlier "broken" cells in the table mean "model chose EOS", not "wrong tokens". Redo copy-edit speed with the chat template before quoting a tandem copy-edit number. No perplexity check was run, so quality drift is still unmeasured.
 
-Not measured: Flash-Next and the other models on llama.cpp, long context, and the author's 97 tok/s claim (different GPU).
+## Flash-Next IQ3_XXS on tandem (llama.cpp)
+
+Same build, `-ngl 99 -cmoe --moe-cache-mib auto -lm none -c 8192 -np 1`. Run under `systemd-run --user --scope -p MemoryMax=50G -p MemorySwapMax=0`: the first attempt without a cap rebooted the VM (47 GB model in a 60 GB VM), the capped one loaded and used about 45 GB. Greedy, 300 tokens, 2 runs per cell, raw prompts (the model echoed or continued the prompt, so outputs are not task answers).
+
+| Setup | Copy-edit decode | Copy-edit prefill | Prose decode |
+|---|---:|---:|---:|
+| tandem | 23.0-25.4 | 168-214 | 29.9-31.5 |
+| tandem + `ngram-mod` | 28.7-38.5 (drafts 81/81 and 234/286 accepted) | 165-219 | 28.6-33.1 |
+
+Strata production on the same card does about 41 decode and about 1,200 prefill at short context, so tandem on llama.cpp is about 25-40% slower on decode and about 6x slower on prefill for this model. Flash-Next has no MTP or kv-resident path in llama.cpp here. N-gram helps the copy task (+25-60%) but far less than on the 35B, because the baseline is already limited by expert traffic. No long-context, quality or non-capped comparison was run.
+
+Not measured: the other models on llama.cpp, long context, and the author's 97 tok/s claim (different GPU).
