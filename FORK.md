@@ -22,7 +22,7 @@ Real text, one or two runs per point, best settings per model, x = prompt tokens
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | Flash-Next IQ3_XXS | 36.9 | 39.9 | 42.7 | 48.9 | 49.1 | 38.9 | 43.5 | - | - |
 | Flash-Next, YaRN 2 (512k) | - | - | - | - | - | - | 38.1 | - | - |
-| Flash-Next, YaRN 4 (1M) | - | - | - | 34.5 | - | - | 31.6 | - | - |
+| Flash-Next, YaRN 4 (1M) | - | - | - | 34.5 | - | - | 31.6 | - | 27.2 |
 | 35B Q4_K_XL (262k setting) | 40.3 | 34.6 | 31.0 | 29.1 | 17.9 | 11.4 | 6.5 | - | - |
 | 35B Q4_K_XL (64k setting) | 51.3 | 41.0 | 34.2 | 31.1 | - | - | - | - | - |
 | 35B IQ3_XXS (262k setting) | 73.1 | 60.1 | 48.3 | 34.7 | 22.0 | 12.8 | 6.9 | - | - |
@@ -40,7 +40,7 @@ Real text, one or two runs per point, best settings per model, x = prompt tokens
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | Flash-Next IQ3_XXS | 383 | 982 | 998 | 1,175 | 1,298 | 1,270 | 1,224 | - | - |
 | Flash-Next, YaRN 2 (512k) | - | - | - | - | - | - | 1,133 | - | - |
-| Flash-Next, YaRN 4 (1M) | - | - | - | 903 | - | - | 983 | - | - |
+| Flash-Next, YaRN 4 (1M) | - | - | - | 903 | - | - | 983 | - | 799 |
 | 35B Q4_K_XL (262k setting) | 1,168 | 1,337 | 1,344 | 1,306 | 947 | 539 | 229 | - | - |
 | 35B Q4_K_XL (64k setting) | 1,124 | 1,324 | 1,342 | 1,307 | - | - | - | - | - |
 | 35B IQ3_XXS (262k setting) | 1,254 | 974 | 944 | 884 | 702 | 452 | 211 | - | - |

@@ -119,3 +119,22 @@ All decode differences are inside the run-to-run spread (about 4 tok/s between t
 ![decode](../img/context-decode.svg)
 
 ![prefill](../img/context-prefill.svg)
+
+## YaRN 4: 1M context (2026-11-06)
+
+Flags: `--max-context 1048576 --rope-scaling yarn --rope-scale 4 --kv k8v4` (plus the production flags). `--kv int8` needs 12.38 GiB of pinned KV at 1M and fails the RAM residency check; `k8v4` needs 9.56 GiB and fits.
+Real text, one pass per point, needle retrieval at each size.
+
+| Prompt tokens | Decode tok/s | Prefill tok/s | Needle (3 of 3) | Wall |
+|---:|---:|---:|---|---:|
+| 10,377 | 35.0 | 428 | yes | - |
+| 31,975 | 34.5 | 903 | yes | - |
+| 103,013 | 32.7 | 1,003 | yes | 107 s |
+| 247,404 | 31.6 | 983 | yes | 257 s |
+| 433,945 | 30.8 | 955 | yes | 461 s |
+| 696,141 | 29.8 | 870 | yes | 807 s |
+| 957,951 | 27.2 | 799 | yes | 1,223 s |
+
+Decode falls 22% from 10k to 958k tokens, against 40-85% for the other models by 256k. Needle retrieval was found at every size.
+The follow-up turn (second question on the cached prompt) answered in 4-13 s but was marked incorrect at 250k and above, so cache reuse across turns is not verified at these lengths.
+YaRN 2 (512k) at 256k read 38.1 decode / 1,133 prefill. Quality at short context under YaRN scaling was not measured.

@@ -25,13 +25,14 @@
 <circle cx="466.9" cy="155.8" r="3.6" fill="#1b9e77"/>
 <circle cx="543.6" cy="160.4" r="3.6" fill="#1b9e77"/>
 <circle cx="602.8" cy="168.0" r="3.6" fill="#1b9e77"/>
-<polyline fill="none" stroke="#0b6b4f" stroke-width="2.2" points="268.9,299.4 390.7,221.0 517.4,204.5 612.3,207.8 673.2,212.4 724.3,226.4"/>
+<polyline fill="none" stroke="#0b6b4f" stroke-width="2.2" points="268.9,299.4 390.7,221.0 517.4,204.5 612.3,207.8 673.2,212.4 724.3,226.4 758.9,238.2"/>
 <circle cx="268.9" cy="299.4" r="3.6" fill="#0b6b4f"/>
 <circle cx="390.7" cy="221.0" r="3.6" fill="#0b6b4f"/>
 <circle cx="517.4" cy="204.5" r="3.6" fill="#0b6b4f"/>
 <circle cx="612.3" cy="207.8" r="3.6" fill="#0b6b4f"/>
 <circle cx="673.2" cy="212.4" r="3.6" fill="#0b6b4f"/>
 <circle cx="724.3" cy="226.4" r="3.6" fill="#0b6b4f"/>
+<circle cx="758.9" cy="238.2" r="3.6" fill="#0b6b4f"/>
 <polyline fill="none" stroke="#d95f02" stroke-width="2.2" points="93.2,177.3 243.3,149.4 318.3,148.2 393.4,154.5 468.5,213.7 543.5,281.1 618.5,332.2"/>
 <circle cx="93.2" cy="177.3" r="3.6" fill="#d95f02"/>
 <circle cx="243.3" cy="149.4" r="3.6" fill="#d95f02"/>
