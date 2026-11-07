@@ -22,14 +22,20 @@ Two tasks: **copy-edit** (1,776-token prompt: rewrite a Python file with one fun
 | `-ncmoe 30` (untuned) | 1.9 | 4.4-4.8 |
 | `-ncmoe 24 -t 6` (tuned baseline) | 38-40 | 39 |
 | `-ncmoe 28 --no-mmap` | failed to start | - |
-| `-cmoe --moe-cache-mib auto` (tandem) | broken, see below | 57-64 |
-| tandem + `ngram-mod` | 139 on one run, broken on the other | 62-75 |
+| `-cmoe --moe-cache-mib auto` (tandem) | ended early (see below) | 57-64 |
+| tandem + `ngram-mod` | 139 on one run, ended early on the other | 62-75 |
 | `-cmoe --moe-cache-mib 0` (no cache) | 1.6-2.2 | 2.3-2.9 |
 
 Against the tuned baseline tandem is about +60% on prose (62 against 39). The 13x over `-ncmoe 30` is a baseline artifact.
 
-## Correctness bug found
+## The "2-token stop" is not a tandem bug (follow-up sweep)
 
-With the expert cache enabled, the 1,776-token copy-edit prompt produced `"\n\n"` and then EOS (2 tokens) in 4 of 5 runs, on both plain tandem and tandem + ngram-mod. With `--moe-cache-mib 0` the same prompt gives 500 normal tokens, so the fault is in the cached-expert path on a long prefill. Short prompts (20 tokens) were fine. Not reported upstream yet. Treat tandem output on long prompts as unverified until fixed; no quality (perplexity) check was run.
+Earlier runs showed the cached-expert path ending the copy-edit prompt after `"\n\n"` + EOS. A follow-up sweep (prompts of 110, 401, 826, 1,268 tokens; 120 tokens each; raw `/completion`, no chat template) shows:
+
+- The tuned baseline (`-ncmoe 24`) ends immediately (1 token, empty) on the 110, 401 and 826-token prompts too. The model is borderline between EOS and `<think>` on a raw prompt, so this is prompt behavior, not corruption.
+- With the cache on, the first greedy token flips on some prompts: baseline always opens with `<think>`, tandem sometimes opens with "Here is the rewritten code" instead (2 of 8 cached runs). `-ub 64 -b 64` and `--moe-cache-mib 3000` did not make this go away or consistently produce it, so it is numeric drift in the split/cache path, consistent with the author's note that greedy output is not repeatable.
+- Decode speed on these prompts: baseline 39-40 tok/s, tandem 45-60 tok/s (the larger figures at `-ub 64`).
+
+So the earlier "broken" cells in the table mean "model chose EOS", not "wrong tokens". Redo copy-edit speed with the chat template before quoting a tandem copy-edit number. No perplexity check was run, so quality drift is still unmeasured.
 
 Not measured: Flash-Next and the other models on llama.cpp, long context, and the author's 97 tok/s claim (different GPU).
