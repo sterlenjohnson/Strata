@@ -138,3 +138,15 @@ Real text, one pass per point, needle retrieval at each size.
 Decode falls 22% from 10k to 958k tokens, against 40-85% for the other models by 256k. Needle retrieval was found at every size.
 The follow-up turn (second question on the cached prompt) answered in 4-13 s but was marked incorrect at 250k and above, so cache reuse across turns is not verified at these lengths.
 YaRN 2 (512k) at 256k read 38.1 decode / 1,133 prefill. Quality at short context under YaRN scaling was not measured.
+
+## Upstream v0.2.12 build, same config (2026-11-07)
+
+Clean upstream v0.2.12 (engine 0.1.58, branch `v0.2.12-4060ti` in `/mnt/AI/Strata-v0212`, built with `-DSTRATA_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=89`) against the fork's production build, Fedora 45, PCIe link at x4 for both (6.4 GB/s measured; it was x8 before). Production config unchanged, real text, 2 runs per row, page cache not evicted for the new build.
+
+| Prompt tokens | Fork build decode / prefill | v0.2.12 decode / prefill |
+|---:|---|---|
+| ~2k | 32.4-37.0 / 275-304 | 29.0-39.4 / 268-313 |
+| ~8k | 36.5 / 845-884 | 33.1-34.0 / 842-899 |
+| ~37k | 32.7-34.7 / 1,066-1,087 | 31.7-32.5 / 1,063-1,079 |
+
+No measurable change: prefill is the same, decode within about 10% (noisy, possibly slightly lower at 8k). Flash-Next's engine path is upstream code plus flags, so staying on v0.2.12 loses nothing here. Upstream v0.2.12 has no Nemotron-H engine, so Bolt and Super-VL (and the q36 skipping/prefetch changes, which conflict heavily) stay on the fork build until ported. The new opt-ins `STRATA_ADAPT_FETCH=1|2` and the DFlash2 CUDA pack were not tested.
