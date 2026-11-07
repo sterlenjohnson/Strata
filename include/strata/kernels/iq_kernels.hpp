@@ -90,6 +90,15 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
 /// per possible group, SwiGLU and the q8_1 quantization as two kernels over all cap_entries.  Bitwise the same results
 /// (native_grouped_parity checks it); kept for A/B timing.  Set before graph capture; captured graphs keep theirs.
 void native_grouped_set_v1(bool v1);
+/// Ungated (relu^2) experts, Nemotron-H (src/nemotron_h): out = down(relu(up . x)^2), the blob [up rows | down rows]
+/// (`native_expert_layout_ungated`: up_off = 0, down_off = n_ff up rows).  The same group / entry contract and the
+/// same scratch (`native_expert_scratch_bytes`) as `native_expert_grouped`; opt-in, the gated path is unchanged.
+NativeExpertLayout native_expert_layout_ungated(int up_type, int d_type, int64_t n_embd, int64_t n_ff);
+bool native_expert_ungated_supported(int up_type, int d_type, int64_t n_embd, int64_t n_ff) noexcept;
+void native_expert_grouped_relu2(const NativeExpertLayout& L, const unsigned long long* grp_ptr,
+                                 const int32_t* grp_start, const int32_t* n_groups, const int32_t* ent_dst,
+                                 const int32_t* ent_tok, int64_t cap_groups, int64_t cap_entries, const void* x_q8_1,
+                                 void* scratch, float* out, void* stream);
 /// The bench / parity only: the 4-bit gate/up kernel of every format (-1 = expert_nibble.hpp's gu_skeleton, the
 /// default; 0 = the S skeleton; 1 = the P skeleton).  Bitwise the same results; set before graph capture.
 void native_expert_nib_set_variant(int v);

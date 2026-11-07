@@ -971,6 +971,21 @@ if(STRATA_ENABLE_CUDA OR STRATA_ENABLE_HIP)
   target_compile_definitions(strata PRIVATE STRATA_HAVE_QWEN35=1)
   endif()
 
+  # Nemotron-H MoE (nemotron_h_moe, Nemotron 3.5 Super VL 120B-A12B, Bolt): the fork's own engine path, src/nemotron_h, as
+  # the standalone strata-nh (ported from the fork's engine 0.1.47 line; `strata` does not switch to it).  Routed experts
+  # are always in the hybrid mode, so it needs the CPU expert pool's ggml-cpu (STRATA_NATIVE_EXPERTS); CUDA only.
+  if(STRATA_NATIVE_EXPERTS AND NOT STRATA_ENABLE_HIP)
+    add_library(strata_nemotron_h_cpu STATIC src/nemotron_h/nh_cpu.cpp)
+    target_include_directories(strata_nemotron_h_cpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_link_libraries(strata_nemotron_h_cpu PUBLIC strata_kernels_cpu)
+    add_library(strata_nemotron_h STATIC src/nemotron_h/nh_engine.cu)
+    target_include_directories(strata_nemotron_h PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE ${_strata_gpu_include_directories})
+    target_link_libraries(strata_nemotron_h PRIVATE strata_prefill strata_kernels strata_nemotron_h_cpu strata_warnings
+                          ${_strata_gpu_blas_target} ${_strata_gpu_runtime_target})
+    add_executable(strata-nh src/nemotron_h/nh_main.cpp)
+    target_link_libraries(strata-nh PRIVATE strata_nemotron_h ${_strata_gpu_runtime_target})
+  endif()
+
   # DeepSeek-V4.1-Flash: the third engine path (src/dsv41, from Project Maya's maya-ds4, MIT, third_party/project-maya).
   # Its own executable for now (strata-dsv41); a family switch in `strata` comes after first light.  OFF by default: it
   # changes no existing target (the vendored kernels live in strata::dsv41k, so no symbol is shared with strata_kernels).
